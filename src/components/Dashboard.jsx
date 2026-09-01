@@ -1,358 +1,348 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Wallet, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
-  ChevronLeft, ChevronRight, Lightbulb, Clock
+  ChevronLeft, ChevronRight, TrendingUp, TrendingDown, ArrowUpRight,
+  ArrowDownLeft, Sparkles, Wallet, CreditCard, ChevronRight as ChevronRightIcon
 } from 'lucide-react';
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer
 } from 'recharts';
 import { accountNetPosition, netWorth as calcNetWorth } from '../utils/financeCalculator';
-import { getMonthBounds, formatDateShort, formatCompact } from '../utils/formatters';
+import { formatCurrency, formatCompact, formatDate, monthLabel, getMonthBounds } from '../utils/formatters';
+import { getCategoryMeta } from '../utils/categoryIcons';
 
-// Port of spendingSuggestionCandidates from HomeScreen.kt
-// Returns ranked candidates so we can rotate (never show same tip type twice in a row)
 function categoryControlTip(category) {
   const n = category.toLowerCase();
-  if (n.includes('rent') || n.includes('housing')) return 'Review add-on housing charges and renegotiate when the lease renews.';
-  if (n.includes('food') || n.includes('dining') || n.includes('restaurant')) return 'Set a weekly food limit and compare delivery vs dining costs.';
-  if (n.includes('grocery')) return 'Plan purchases before shopping and reduce unplanned repeat trips.';
-  if (n.includes('transport') || n.includes('fuel') || n.includes('cab')) return 'Compare public transport and shared rides before the next similar spend.';
-  if (n.includes('shopping') || n.includes('clothes')) return 'Use a waiting period and a monthly cap before non-essential purchases.';
-  if (n.includes('entertainment') || n.includes('movie')) return 'Set a monthly leisure allowance and choose activities that provide the most value.';
-  if (n.includes('subscription') || n.includes('membership')) return 'Check for unused or overlapping subscriptions before the next renewal.';
-  if (n.includes('utility') || n.includes('electric') || n.includes('internet')) return 'Compare the bill with previous months and review usage.';
-  if (n.includes('health') || n.includes('medical')) return 'Check insurance coverage and review recurring medicine costs.';
-  return 'Review the transactions in this category and set a realistic limit for next month.';
+  if (n.includes('rent') || n.includes('housing')) return 'Review recurring housing charges and negotiate on renewal.';
+  if (n.includes('food') || n.includes('dining'))  return 'Set a weekly dining cap and compare delivery vs cooking.';
+  if (n.includes('grocery')) return 'Plan groceries in bulk to avoid repeat unplanned trips.';
+  if (n.includes('transport') || n.includes('fuel')) return 'Optimize commute routes or mix in public transit.';
+  if (n.includes('shopping')) return 'Try a 48-hour cool-off rule before purchasing non-essentials.';
+  if (n.includes('entertainment')) return 'Audit subscriptions for maximum value.';
+  return 'Set a realistic baseline budget for this category next month.';
 }
 
 function spendingSuggestionCandidates(monthExpense, catPatterns, historicalCats, hasHistoricalData, money) {
   const spending = catPatterns.filter(([,c]) => c > 0);
   const highest = spending[0];
-  if (!highest) return [{ type: 'EMPTY', text: 'Add expense transactions to receive spending suggestions.' }];
+  if (!highest) return [{ type: 'EMPTY', text: 'Log daily expenses to unlock smart AI spending suggestions.' }];
   const meaningful = Math.max(500, monthExpense * 0.03);
   const candidates = [];
 
   if (hasHistoricalData) {
-    // NEW_EXPENSE: a category that never appeared before this month
     const newSpend = spending.find(([cat, c, [l]]) => !historicalCats.has(cat) && l === 0 && c >= meaningful);
     if (newSpend) candidates.push({
       type: 'NEW_EXPENSE',
-      text: `${newSpend[0]} is a new expense at ${money(newSpend[1])}. ${categoryControlTip(newSpend[0])}`
+      text: `${newSpend[0]} is a new spend at ${money(newSpend[1])}. ${categoryControlTip(newSpend[0])}`
     });
 
-    // BIGGEST_SPIKE: largest absolute increase vs last month
     const spikes = spending.filter(([,c,[l,pct]]) => l > 0 && c - l >= meaningful && pct >= 10);
     const spike = spikes.sort((a,b) => (b[1]-b[2][0]) - (a[1]-a[2][0]))[0];
     if (spike) candidates.push({
       type: 'BIGGEST_SPIKE',
-      text: `${spike[0]} increased the most: +${money(spike[1]-spike[2][0])} (${Math.round(spike[2][1])}%) from last month. ${categoryControlTip(spike[0])}`
+      text: `${spike[0]} spiked most: +${money(spike[1]-spike[2][0])} (${Math.round(spike[2][1])}%) vs last month. ${categoryControlTip(spike[0])}`
     });
   }
 
-  // HIGHEST_SPEND
   const [cat, curr, [prev]] = highest;
   const share = monthExpense > 0 ? Math.round(curr / monthExpense * 100) : 0;
-  const stable = prev > 0 && Math.abs(curr - prev) < meaningful;
   candidates.push({
     type: 'HIGHEST_SPEND',
-    text: stable
-      ? `${cat} remains your highest spend at ${money(curr)} (${share}%), stable month to month. ${categoryControlTip(cat)}`
-      : `${cat} is your highest spend at ${money(curr)} (${share}% of expenses). ${categoryControlTip(cat)}`
-  });
-
-  // SECONDARY_FOCUS
-  if (spending[1]) {
-    const [cat2, amt2] = spending[1];
-    const share2 = monthExpense > 0 ? Math.round(amt2 / monthExpense * 100) : 0;
-    candidates.push({
-      type: 'SECONDARY_FOCUS',
-      text: `${cat2} is your next major spend at ${money(amt2)} (${share2}%). ${categoryControlTip(cat2)}`
-    });
-  }
-
-  // MONTHLY_PLAN
-  candidates.push({
-    type: 'MONTHLY_PLAN',
-    text: `Plan next month's limit for ${cat} using this month's ${money(curr)} as the baseline. ${categoryControlTip(cat)}`
+    text: `${cat} is your top spend at ${money(curr)} (${share}% of spend). ${categoryControlTip(cat)}`
   });
 
   return candidates;
 }
 
-const LS_INSIGHT_KEY = 'fintrack_last_insight_type';
-
-function pickInsight(monthOffset, monthExpense, lastExpense, catPatterns, lastCatPatterns, historicalCats, prevHistoricalCats) {
-  const money = v => '\u20B9' + Math.round(v).toLocaleString('en-IN');
-
-  // Calculate what last month's top insight type was (to avoid repeating it)
-  const prevCandidates = spendingSuggestionCandidates(lastExpense, lastCatPatterns, prevHistoricalCats, prevHistoricalCats.size > 0, money);
-  const prevType = prevCandidates[0]?.type || null;
-
-  // Get this month's candidates and pick first that differs from last month's top
-  const candidates = spendingSuggestionCandidates(monthExpense, catPatterns, historicalCats, historicalCats.size > 0, money);
-  if (candidates.length === 0) return null;
-
-  const rotated = candidates.find(c => c.type !== prevType) || candidates[0];
-  return rotated.text;
-}
-
-function MonthPill({ label, canForward, onPrev, onNext }) {
-  return (
-    <div className="flex items-center gap-1 bg-ft-card border border-ft-border rounded-2xl px-1 py-0.5">
-      <button onClick={onPrev} className="w-8 h-8 flex items-center justify-center text-ft-text hover:text-white transition-colors">
-        <ChevronLeft className="w-4 h-4" />
-      </button>
-      <span className="text-xs font-semibold text-ft-text w-24 text-center">{label}</span>
-      <button
-        onClick={onNext}
-        disabled={!canForward}
-        className={`w-8 h-8 flex items-center justify-center transition-colors ${canForward ? 'text-ft-text hover:text-white' : 'text-ft-border cursor-default'}`}
-      >
-        <ChevronRight className="w-4 h-4" />
-      </button>
-    </div>
-  );
-}
-
-export const Dashboard = ({ accounts, transactions, profile, setActiveTab }) => {
+export const Dashboard = ({ accounts, transactions, profile, setActiveTab, isMasked }) => {
   const [monthOffset, setMonthOffset] = useState(0);
-  const fmt = (v) => formatCompact(v, profile?.currencyCode || 'INR');
+  const currency = profile?.currencyCode || 'INR';
 
-  const { start, end, label } = useMemo(() => getMonthBounds(monthOffset), [monthOffset]);
-  const prevBounds  = useMemo(() => getMonthBounds(monthOffset - 1), [monthOffset]);
-  const prevEnd     = prevBounds.end;
-  const prevStart   = prevBounds.start;
+  const fmt = (v) => formatCurrency(v, currency, isMasked);
+  const fmtC = (v) => formatCompact(v, currency, isMasked);
 
-  const monthTx   = useMemo(() => transactions.filter(t => t.date >= start && t.date <= end), [transactions, start, end]);
-  const lastMonTx = useMemo(() => transactions.filter(t => t.date >= prevStart && t.date <= prevEnd), [transactions, prevStart, prevEnd]);
-  const txUpToEnd = useMemo(() => transactions.filter(t => t.date <= end), [transactions, end]);
-  const txUpToPrevEnd = useMemo(() => transactions.filter(t => t.date <= prevEnd), [transactions, prevEnd]);
+  const { start, end } = useMemo(() => getMonthBounds(monthOffset), [monthOffset]);
+  const { start: prevStart, end: prevEnd } = useMemo(() => getMonthBounds(monthOffset - 1), [monthOffset]);
 
-  const monthIncome  = useMemo(() => monthTx.filter(t => t.type === 'Income').reduce((s,t) => s+t.amount, 0), [monthTx]);
-  const monthExpense = useMemo(() => monthTx.filter(t => t.type === 'Expense').reduce((s,t) => s+t.amount, 0), [monthTx]);
-  const lastIncome   = useMemo(() => lastMonTx.filter(t => t.type === 'Income').reduce((s,t) => s+t.amount, 0), [lastMonTx]);
-  const lastExpense  = useMemo(() => lastMonTx.filter(t => t.type === 'Expense').reduce((s,t) => s+t.amount, 0), [lastMonTx]);
-  const cashFlow     = monthIncome - monthExpense;
-  const savingsRate  = monthIncome > 0 ? Math.round((cashFlow / monthIncome) * 100) : 0;
+  const monthTx = useMemo(() => transactions.filter(t => t.date >= start && t.date <= end), [transactions, start, end]);
+  const prevMonthTx = useMemo(() => transactions.filter(t => t.date >= prevStart && t.date <= prevEnd), [transactions, prevStart, prevEnd]);
 
-  const currentNW  = useMemo(() => calcNetWorth(accounts, txUpToEnd), [accounts, txUpToEnd]);
-  const previousNW = useMemo(() => calcNetWorth(accounts, txUpToPrevEnd), [accounts, txUpToPrevEnd]);
-  const nwChange   = currentNW - previousNW;
+  const monthIncome = useMemo(() => monthTx.filter(t => t.type === 'Income').reduce((s,t) => s + t.amount, 0), [monthTx]);
+  const monthExpense = useMemo(() => monthTx.filter(t => t.type === 'Expense').reduce((s,t) => s + t.amount, 0), [monthTx]);
+  const netCashFlow = monthIncome - monthExpense;
+  const savingsRate = monthIncome > 0 ? Math.max(0, Math.round((netCashFlow / monthIncome) * 100)) : 0;
 
-  // Category patterns for insight (port of expensePatterns())
+  const currentNetWorth = useMemo(() => calcNetWorth(accounts, transactions), [accounts, transactions]);
+
   const catPatterns = useMemo(() => {
-    const curr = {};
-    const prev = {};
+    const curr = {}; const prev = {};
     monthTx.filter(t => t.type === 'Expense').forEach(t => { curr[t.category] = (curr[t.category]||0) + t.amount; });
-    lastMonTx.filter(t => t.type === 'Expense').forEach(t => { prev[t.category] = (prev[t.category]||0) + t.amount; });
-    return [...new Set([...Object.keys(curr), ...Object.keys(prev)])]
-      .map(cat => {
-        const c = curr[cat] || 0;
-        const l = prev[cat] || 0;
-        const pct = l > 0 ? ((c-l)/l*100) : (c > 0 ? 100 : 0);
-        return [cat, c, [l, pct]];
-      })
-      .sort((a,b) => b[1]-a[1])
-      .filter(x => x[1] > 0);
-  }, [monthTx, lastMonTx]);
+    prevMonthTx.filter(t => t.type === 'Expense').forEach(t => { prev[t.category] = (prev[t.category]||0) + t.amount; });
+    return [...new Set([...Object.keys(curr), ...Object.keys(prev)])].map(cat => {
+      const c = curr[cat] || 0;
+      const l = prev[cat] || 0;
+      const pct = l > 0 ? ((c - l) / l) * 100 : 0;
+      return [cat, c, [l, pct]];
+    }).sort((a,b) => b[1]-a[1]);
+  }, [monthTx, prevMonthTx]);
 
-  // Historical categories for rotation context (all expense categories seen before this month)
   const historicalCats = useMemo(() => {
-    const cutoff = start;
-    return new Set(transactions.filter(t => t.type === 'Expense' && t.date < cutoff).map(t => t.category).filter(Boolean));
+    return new Set(transactions.filter(t => t.type === 'Expense' && t.date < start).map(t => t.category).filter(Boolean));
   }, [transactions, start]);
 
-  const prevHistoricalCats = useMemo(() => {
-    const cutoff = prevStart;
-    return new Set(transactions.filter(t => t.type === 'Expense' && t.date < cutoff).map(t => t.category).filter(Boolean));
-  }, [transactions, prevStart]);
+  const insight = useMemo(() => {
+    const moneyStr = (v) => formatCompact(v, currency, isMasked);
+    const candidates = spendingSuggestionCandidates(monthExpense, catPatterns, historicalCats, historicalCats.size > 0, moneyStr);
+    return candidates[0]?.text || 'Track daily to build your financial intelligence.';
+  }, [monthExpense, catPatterns, historicalCats, currency, isMasked]);
 
-  const lastCatPatterns = useMemo(() => {
-    const curr = {}; const prev = {};
-    lastMonTx.filter(t => t.type === 'Expense').forEach(t => { curr[t.category] = (curr[t.category]||0) + t.amount; });
-    return [...new Set(Object.keys(curr))].map(cat => {
-      const c = curr[cat] || 0;
-      return [cat, c, [0, 0]];
-    }).sort((a,b) => b[1]-a[1]);
-  }, [lastMonTx]);
-
-  const insight = useMemo(() =>
-    pickInsight(monthOffset, monthExpense, lastExpense, catPatterns, lastCatPatterns, historicalCats, prevHistoricalCats),
-    [monthOffset, monthExpense, lastExpense, catPatterns, lastCatPatterns, historicalCats, prevHistoricalCats]
-  );
-
-  const recentTx = useMemo(() => [...monthTx].sort((a,b) => b.date - a.date).slice(0,5), [monthTx]);
-
-  // 12-week bar chart data (last 6 months)
-  const barData = useMemo(() => {
-    return Array.from({length: 6}, (_, i) => {
-      const b = getMonthBounds(monthOffset - 5 + i);
-      const tx = transactions.filter(t => t.date >= b.start && t.date <= b.end);
-      return {
-        month: b.label.split(' ')[0],
-        income:  tx.filter(t=>t.type==='Income').reduce((s,t)=>s+t.amount,0),
-        expense: tx.filter(t=>t.type==='Expense').reduce((s,t)=>s+t.amount,0),
-      };
-    });
+  const sixMonthData = useMemo(() => {
+    const list = [];
+    for (let i = 5; i >= 0; i--) {
+      const b = getMonthBounds(monthOffset - i);
+      const txs = transactions.filter(t => t.date >= b.start && t.date <= b.end);
+      const inc = txs.filter(t => t.type === 'Income').reduce((s,t) => s+t.amount, 0);
+      const exp = txs.filter(t => t.type === 'Expense').reduce((s,t) => s+t.amount, 0);
+      list.push({
+        name: monthLabel(monthOffset - i).split(' ')[0],
+        Income: inc,
+        Expense: exp,
+      });
+    }
+    return list;
   }, [transactions, monthOffset]);
 
-  const StatCard = ({ label, value, sub, color = 'text-white', icon: Icon }) => (
-    <div className="bg-ft-card border border-ft-border rounded-2xl p-4 flex flex-col gap-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold text-ft-muted uppercase tracking-wider">{label}</span>
-        {Icon && <Icon className={`w-4 h-4 ${color}`} />}
-      </div>
-      <div className={`text-xl font-bold font-mono tracking-tight ${color}`}>{value}</div>
-      {sub && <div className="text-[11px] text-ft-muted">{sub}</div>}
-    </div>
-  );
+  const accountsWithPos = useMemo(() => {
+    return accounts.map(a => ({ ...a, position: accountNetPosition(a, transactions) }));
+  }, [accounts, transactions]);
+
+  const recentTx = useMemo(() => {
+    return [...transactions].sort((a, b) => b.date - a.date).slice(0, 6);
+  }, [transactions]);
 
   return (
-    <div className="space-y-5 pb-12">
-      {/* Header row */}
+    <div className="space-y-6 pb-12">
+      {/* Month Selector Capsule Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-extrabold text-white tracking-tight">Home</h1>
-          <p className="text-ft-muted text-xs">Hi, {profile?.name || 'there'} 👋</p>
-        </div>
-        <MonthPill
-          label={label}
-          canForward={monthOffset < 0}
-          onPrev={() => setMonthOffset(o => o-1)}
-          onNext={() => { if (monthOffset < 0) setMonthOffset(o => o+1); }}
-        />
-      </div>
-
-      {/* Net Worth hero */}
-      <div
-        className="bg-ft-primary/20 border border-ft-primary/30 rounded-2xl p-5 cursor-pointer hover:bg-ft-primary/25 transition-all"
-        onClick={() => setActiveTab('insights')}
-      >
-        <div className="flex items-center gap-2 text-ft-muted text-xs font-medium mb-1">
-          <Wallet className="w-3.5 h-3.5" />
-          <span>Net Worth {monthOffset < 0 ? 'as of ' + label : ''}</span>
-        </div>
-        <div className={`text-3xl font-black font-mono tracking-tight ${currentNW >= 0 ? 'text-white' : 'text-ft-red'}`}>
-          {formatCompact(currentNW, profile?.currencyCode || 'INR')}
-        </div>
-        {nwChange !== 0 && (
-          <div className={`flex items-center gap-1 mt-1 text-xs font-medium ${nwChange > 0 ? 'text-ft-green' : 'text-ft-red'}`}>
-            {nwChange > 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-            <span>{fmt(Math.abs(nwChange))} vs last month</span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-neo-surface border border-neo-border rounded-2xl p-1 shadow-sm">
+            <button onClick={() => setMonthOffset(p => p - 1)} className="p-1.5 text-neo-muted hover:text-white hover:bg-neo-card rounded-xl transition-all">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-3 text-xs sm:text-sm font-bold text-white tracking-tight">
+              {monthLabel(monthOffset)}
+            </span>
+            <button onClick={() => setMonthOffset(p => p + 1)} className="p-1.5 text-neo-muted hover:text-white hover:bg-neo-card rounded-xl transition-all">
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
-        )}
+          {monthOffset !== 0 && (
+            <button onClick={() => setMonthOffset(0)} className="px-2.5 py-1.5 text-[10px] font-bold bg-neo-card text-neo-cyan border border-neo-border rounded-xl hover:border-neo-cyan/40 transition-all">
+              Current
+            </button>
+          )}
+        </div>
+        <div className="text-[11px] font-semibold text-neo-muted">{monthTx.length} items</div>
       </div>
 
-      {/* KPI row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <StatCard label="Income"   value={fmt(monthIncome)}  color="text-ft-green"  icon={ArrowDownRight} />
-        <StatCard label="Expenses" value={fmt(monthExpense)} color="text-ft-red"    icon={ArrowUpRight}   />
-        <div className="sm:col-span-1 col-span-2">
-          <StatCard
-            label="Cash Flow"
-            value={(cashFlow >= 0 ? '+' : '') + fmt(cashFlow)}
-            sub={`Savings rate: ${savingsRate}%`}
-            color={cashFlow >= 0 ? 'text-ft-green' : 'text-ft-red'}
-          />
-        </div>
-      </div>
-
-      {/* Insight card */}
-      {insight && (
-        <div className="flex items-start gap-3 p-4 bg-ft-card border border-ft-border rounded-2xl">
-          <Lightbulb className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-ft-text leading-relaxed">{insight}</p>
-        </div>
-      )}
-
-      {/* 6-month bar chart */}
-      <div className="bg-ft-card border border-ft-border rounded-2xl p-4">
-        <h2 className="text-xs font-bold text-ft-muted uppercase tracking-wider mb-3">6-Month Overview</h2>
-        <div className="h-44">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={barData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-              <XAxis dataKey="month" stroke="#C1C9C0" fontSize={10} tickLine={false} axisLine={false} />
-              <YAxis stroke="#C1C9C0" fontSize={10} tickFormatter={v => '\u20B9'+(v/1000).toFixed(0)+'k'} tickLine={false} axisLine={false} />
-              <Tooltip
-                contentStyle={{ backgroundColor:'#1C211C', borderColor:'#414942', borderRadius:'10px', fontSize:'11px' }}
-                formatter={(v) => formatCompact(v, profile?.currencyCode || 'INR')}
-              />
-              <Bar dataKey="income"  name="Income"  fill="#2E7D32" radius={[4,4,0,0]} />
-              <Bar dataKey="expense" name="Expense" fill="#C62828" radius={[4,4,0,0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Recent transactions */}
-      <div className="bg-ft-card border border-ft-border rounded-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-ft-border">
-          <h2 className="text-xs font-bold text-ft-muted uppercase tracking-wider">Recent Activity</h2>
-          <button onClick={() => setActiveTab('activity')} className="text-xs font-semibold text-ft-green hover:text-white transition-colors">
-            View All →
-          </button>
-        </div>
-        {recentTx.length === 0 ? (
-          <div className="py-8 text-center text-ft-muted text-xs">No transactions this month.</div>
-        ) : (
-          <div className="divide-y divide-ft-border">
-            {recentTx.map(tx => (
-              <div key={tx.id} className="flex items-center justify-between px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm ${
-                    tx.type === 'Income' ? 'bg-ft-green/10 text-ft-green' :
-                    tx.type === 'Transfer' ? 'bg-ft-blue/10 text-ft-blue' :
-                    'bg-ft-red/10 text-ft-red'
-                  }`}>
-                    {tx.type === 'Income' ? '+' : tx.type === 'Transfer' ? '⇄' : '−'}
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-ft-text truncate max-w-[180px]">{tx.note || tx.category}</div>
-                    <div className="text-[11px] text-ft-muted">{tx.category} · {tx.account}</div>
-                  </div>
-                </div>
-                <div className={`font-mono font-bold text-xs ${tx.type==='Income' ? 'text-ft-green' : tx.type==='Transfer' ? 'text-ft-blue' : 'text-ft-text'}`}>
-                  {tx.type === 'Income' ? '+' : tx.type === 'Transfer' ? '' : '-'}{fmt(tx.amount)}
+      {/* Hero Bento Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 relative overflow-hidden bg-gradient-to-br from-neo-surface via-neo-card to-[#121927] border border-neo-border rounded-3xl p-6 shadow-neo-card">
+          <div className="relative z-10 space-y-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-neo-muted">Total Net Position</span>
+                <div className="text-2xl sm:text-3xl font-black font-mono text-white tracking-tight mt-1">
+                  {fmt(currentNetWorth)}
                 </div>
               </div>
-            ))}
+              <div className="px-3 py-1 bg-neo-neonGreen/10 border border-neo-neonGreen/20 rounded-full flex items-center gap-1.5 text-neo-neonGreen text-xs font-bold">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{savingsRate}% Saved</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="bg-neo-bg/60 border border-neo-border/80 rounded-2xl p-3.5">
+                <div className="flex items-center gap-1.5 text-neo-neonGreen text-[11px] font-bold mb-1">
+                  <ArrowUpRight className="w-3.5 h-3.5" /> Income
+                </div>
+                <div className="text-lg sm:text-xl font-bold font-mono text-white">{fmt(monthIncome)}</div>
+              </div>
+
+              <div className="bg-neo-bg/60 border border-neo-border/80 rounded-2xl p-3.5">
+                <div className="flex items-center gap-1.5 text-neo-coral text-[11px] font-bold mb-1">
+                  <ArrowDownLeft className="w-3.5 h-3.5" /> Expense
+                </div>
+                <div className="text-lg sm:text-xl font-bold font-mono text-white">{fmt(monthExpense)}</div>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between text-[11px] font-medium text-neo-muted mb-1.5">
+                <span>Monthly Cash Flow: <b className={netCashFlow >= 0 ? 'text-neo-neonGreen' : 'text-neo-coral'}>{fmt(netCashFlow)}</b></span>
+                <span>Burn Rate: {monthIncome > 0 ? Math.min(100, Math.round((monthExpense / monthIncome) * 100)) : 0}%</span>
+              </div>
+              <div className="w-full h-2 bg-neo-border/80 rounded-full overflow-hidden flex">
+                <div className="h-full bg-gradient-to-r from-neo-emerald to-neo-neonGreen rounded-full transition-all duration-500" style={{ width: `${Math.min(100, savingsRate)}%` }} />
+              </div>
+            </div>
           </div>
-        )}
+        </div>
+
+        <div className="relative bg-gradient-to-br from-[#1A162B] to-neo-card border border-neo-purple/30 rounded-3xl p-5 shadow-neo-card flex flex-col justify-between overflow-hidden">
+          <div>
+            <div className="flex items-center gap-2 text-neo-purple text-xs font-black uppercase tracking-wider mb-2.5">
+              <Sparkles className="w-4 h-4 text-neo-purple" />
+              <span>Smart Insight</span>
+            </div>
+            <p className="text-xs sm:text-sm text-neo-text font-medium leading-relaxed">
+              "{insight}"
+            </p>
+          </div>
+          <div className="pt-4 mt-4 border-t border-neo-border/40 flex items-center justify-between">
+            <span className="text-[10px] text-neo-muted">Monthly trend</span>
+            <button onClick={() => setActiveTab('insights')} className="text-xs font-bold text-neo-purple hover:text-white flex items-center gap-1 transition-colors">
+              Analytics <ChevronRightIcon className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Account snapshots */}
-      <div className="bg-ft-card border border-ft-border rounded-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-ft-border">
-          <h2 className="text-xs font-bold text-ft-muted uppercase tracking-wider">Accounts</h2>
-          <button onClick={() => setActiveTab('accounts')} className="text-xs font-semibold text-ft-green hover:text-white transition-colors">
-            Manage →
+      {/* Account Virtual Card Deck Carousel */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Wallet className="w-4 h-4 text-neo-cyan" />
+            <h2 className="text-sm font-bold text-white tracking-tight">Cards & Accounts</h2>
+          </div>
+          <button onClick={() => setActiveTab('accounts')} className="text-xs font-semibold text-neo-cyan hover:underline">
+            Manage ({accounts.length})
           </button>
         </div>
-        <div className="divide-y divide-ft-border">
-          {accounts.map(acc => {
-            const pos = accountNetPosition(acc, txUpToEnd);
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {accountsWithPos.slice(0, 3).map((acc) => {
             const isCC = acc.type === 'CREDIT_CARD';
-            const utilPct = isCC && acc.creditLimit > 0 ? Math.round(Math.abs(pos) / acc.creditLimit * 100) : 0;
+            const liability = isCC ? Math.abs(acc.position) : 0;
+            const util = isCC && acc.creditLimit > 0 ? Math.round(liability / acc.creditLimit * 100) : 0;
+
             return (
-              <div key={acc.name} className="flex items-center justify-between px-4 py-3">
-                <div>
-                  <div className="text-xs font-semibold text-ft-text">{acc.name}</div>
-                  <div className="text-[11px] text-ft-muted">{acc.type === 'BANK' ? 'Bank' : acc.type === 'CASH_WALLET' ? 'Cash / Wallet' : 'Credit Card'}</div>
-                  {isCC && acc.creditLimit > 0 && (
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <div className="w-16 h-1 bg-ft-border rounded-full overflow-hidden">
-                        <div className={`h-1 rounded-full ${utilPct > 30 ? 'bg-ft-orange' : 'bg-ft-green'}`} style={{ width: Math.min(utilPct,100)+'%' }} />
-                      </div>
-                      <span className={`text-[10px] font-mono ${utilPct > 30 ? 'text-ft-orange' : 'text-ft-muted'}`}>{utilPct}%</span>
+              <div key={acc.name} className="relative bg-gradient-to-br from-neo-card to-neo-surface border border-neo-border hover:border-neo-borderLight rounded-2xl p-4 shadow-sm transition-all hover:scale-[1.01]">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                      isCC ? 'bg-neo-crimson/15 text-neo-crimson' : acc.type === 'CASH_WALLET' ? 'bg-neo-amber/15 text-neo-amber' : 'bg-neo-cyan/15 text-neo-cyan'
+                    }`}>
+                      {isCC ? <CreditCard className="w-4 h-4" /> : <Wallet className="w-4 h-4" />}
                     </div>
+                    <div>
+                      <div className="text-xs font-bold text-white">{acc.name}</div>
+                      <div className="text-[10px] text-neo-muted capitalize">{acc.type.replace('_',' ').toLowerCase()}</div>
+                    </div>
+                  </div>
+                  {isCC && (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${util > 30 ? 'bg-neo-coral/15 text-neo-coral' : 'bg-neo-neonGreen/15 text-neo-neonGreen'}`}>
+                      {util}% Limit
+                    </span>
                   )}
                 </div>
-                <span className={`font-mono font-bold text-sm ${pos >= 0 ? 'text-ft-green' : 'text-ft-red'}`}>
-                  {formatCompact(pos, profile?.currencyCode || 'INR')}
-                </span>
+                <div className="pt-2 border-t border-neo-border/50">
+                  <span className="text-[10px] text-neo-muted">{isCC ? 'Outstanding' : 'Available Balance'}</span>
+                  <div className={`text-lg font-bold font-mono ${acc.position >= 0 ? 'text-neo-neonGreen' : 'text-neo-coral'}`}>
+                    {fmt(acc.position)}
+                  </div>
+                </div>
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Two Column Section: 6-Month Chart + Recent Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div className="lg:col-span-3 bg-neo-card border border-neo-border rounded-3xl p-5 shadow-neo-card space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-white">6-Month Cash Flow</h3>
+              <p className="text-[11px] text-neo-muted">Income vs Expenses history</p>
+            </div>
+            <div className="flex items-center gap-3 text-[11px]">
+              <span className="flex items-center gap-1 text-neo-neonGreen font-semibold">
+                <span className="w-2 h-2 rounded-full bg-neo-neonGreen" /> Income
+              </span>
+              <span className="flex items-center gap-1 text-neo-coral font-semibold">
+                <span className="w-2 h-2 rounded-full bg-neo-coral" /> Expense
+              </span>
+            </div>
+          </div>
+          <div className="h-56 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={sixMonthData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <XAxis dataKey="name" stroke="#8E9BAE" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="#8E9BAE" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => fmtC(v)} />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div className="bg-neo-surface border border-neo-border rounded-xl p-3 shadow-xl text-xs space-y-1">
+                          <p className="font-bold text-white">{label}</p>
+                          <p className="text-neo-neonGreen">Income: {fmt(payload[0]?.value)}</p>
+                          <p className="text-neo-coral">Expense: {fmt(payload[1]?.value)}</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Bar dataKey="Income" fill="#00E676" radius={[4, 4, 0, 0]} maxBarSize={20} />
+                <Bar dataKey="Expense" fill="#FF4757" radius={[4, 4, 0, 0]} maxBarSize={20} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="lg:col-span-2 bg-neo-card border border-neo-border rounded-3xl p-5 shadow-neo-card flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-white">Recent Activity</h3>
+              <button onClick={() => setActiveTab('activity')} className="text-xs font-semibold text-neo-cyan hover:underline">
+                View All
+              </button>
+            </div>
+            {recentTx.length === 0 ? (
+              <div className="py-12 text-center text-xs text-neo-muted">No transactions logged yet.</div>
+            ) : (
+              <div className="divide-y divide-neo-border/50">
+                {recentTx.map((tx) => {
+                  const meta = getCategoryMeta(tx.category);
+                  const isInc = tx.type === 'Income';
+                  const isTrf = tx.type === 'Transfer';
+                  return (
+                    <div key={tx.id} className="py-2.5 flex items-center justify-between group">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base border ${meta.bg} ${meta.border}`}>
+                          {meta.emoji}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-white truncate max-w-[130px] sm:max-w-[180px]">
+                            {tx.note || tx.category}
+                          </div>
+                          <div className="text-[10px] text-neo-muted truncate">
+                            {tx.account} · {formatDate(tx.date).split(' ').slice(0,2).join(' ')}
+                          </div>
+                        </div>
+                      </div>
+                      <div className={`text-right font-mono font-bold text-xs ${
+                        isInc ? 'text-neo-neonGreen' : isTrf ? 'text-neo-cyan' : 'text-neo-text'
+                      }`}>
+                        {isInc ? '+' : isTrf ? '' : '-'}{fmt(tx.amount)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

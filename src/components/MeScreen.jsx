@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Download, Upload, RefreshCw, FileJson, Pencil, Check, X, LogOut } from 'lucide-react';
+import { User, Download, FileJson, Pencil, Check, X, LogOut, ShieldCheck, Database, Cloud } from 'lucide-react';
 import { exportBackupJSON } from '../utils/backup';
 import { useToast } from './Toast';
 import { useConfirm } from './ConfirmDialog';
@@ -36,43 +36,52 @@ export const MeScreen = ({
 
   const handleExport = () => {
     exportBackupJSON({ profile, transactions, accounts, incomeCategories, expenseCategories });
-    toast.success('Backup downloaded.');
+    toast.success('Backup JSON downloaded.');
   };
 
   const handleSignOut = async () => {
-    const ok = await confirm('You will be signed out. Your data is safely stored in the cloud.', { title: 'Sign Out', danger: false });
+    const ok = await confirm('Sign out of your account? Your data is safely stored in the cloud.', { title: 'Sign Out', danger: false });
     if (ok) onSignOut();
   };
 
   const initials = profile?.name
     ? profile.name.trim().split(/\s+/).map(w => w[0].toUpperCase()).slice(0,2).join('')
-    : 'U';
+    : 'FT';
 
   return (
-    <div className="space-y-5 pb-12">
-      {/* Profile card */}
-      <div className="bg-ft-card border border-ft-border rounded-2xl p-5">
+    <div className="space-y-6 pb-12">
+      <div>
+        <h1 className="text-xl font-extrabold text-white tracking-tight">Account & Settings</h1>
+        <p className="text-xs text-neo-muted">Profile and cloud storage controls</p>
+      </div>
+
+      {/* User Profile Bento Card */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-neo-card to-neo-surface border border-neo-border rounded-3xl p-6 shadow-neo-card space-y-4">
         {editing ? (
           <div className="space-y-3">
-            <p className="text-xs font-bold text-ft-muted uppercase tracking-wider">Edit Profile</p>
+            <p className="text-xs font-bold text-neo-muted uppercase tracking-wider">Edit Profile Details</p>
             <div>
-              <label className="block text-[11px] text-ft-muted mb-1">Your Name</label>
-              <input autoFocus type="text" value={name} onChange={e => { setName(e.target.value); setErr(''); }}
-                className="w-full bg-ft-bg border border-ft-border rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-ft-green" />
+              <label className="block text-[11px] text-neo-muted mb-1 font-semibold">Your Name</label>
+              <input
+                autoFocus type="text" value={name} onChange={e => { setName(e.target.value); setErr(''); }}
+                className="w-full bg-neo-bg border border-neo-border rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-neo-neonGreen"
+              />
             </div>
             <div>
-              <label className="block text-[11px] text-ft-muted mb-1">Currency</label>
-              <select value={currency} onChange={e => setCurrency(e.target.value)}
-                className="w-full bg-ft-bg border border-ft-border rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-ft-green">
+              <label className="block text-[11px] text-neo-muted mb-1 font-semibold">Base Currency</label>
+              <select
+                value={currency} onChange={e => setCurrency(e.target.value)}
+                className="w-full bg-neo-bg border border-neo-border rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-neo-neonGreen"
+              >
                 {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
               </select>
             </div>
-            {err && <p className="text-ft-red text-[11px]">{err}</p>}
+            {err && <p className="text-neo-coral text-[11px] font-medium">{err}</p>}
             <div className="flex gap-2 pt-1">
-              <button onClick={saveEdit} className="flex items-center gap-1.5 px-4 py-2 bg-ft-primary hover:bg-ft-green text-white text-xs font-bold rounded-xl">
+              <button onClick={saveEdit} className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-neo-emerald to-neo-neonGreen text-black text-xs font-bold rounded-xl shadow-sm">
                 <Check className="w-3.5 h-3.5" /> Save
               </button>
-              <button onClick={cancelEdit} className="flex items-center gap-1.5 px-4 py-2 text-ft-muted bg-ft-bg border border-ft-border rounded-xl text-xs hover:text-white">
+              <button onClick={cancelEdit} className="flex items-center gap-1.5 px-4 py-2 text-neo-muted bg-neo-bg border border-neo-border rounded-xl text-xs hover:text-white">
                 <X className="w-3.5 h-3.5" /> Cancel
               </button>
             </div>
@@ -80,66 +89,85 @@ export const MeScreen = ({
         ) : (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-ft-primary flex items-center justify-center text-white font-black text-xl border border-ft-green/20">
-                {initials}
+              <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-neo-purple to-neo-blue p-[2px] shadow-neo-glow-purple flex-shrink-0">
+                <div className="w-full h-full bg-neo-surface rounded-[22px] flex items-center justify-center text-white font-black text-xl">
+                  {initials}
+                </div>
               </div>
               <div>
-                <div className="text-base font-bold text-white">{profile?.name || 'User'}</div>
-                <div className="text-xs text-ft-muted">{authUser?.email || ''}</div>
-                <div className="text-[11px] text-ft-muted mt-0.5">
-                  {profile?.currencyCode} · {transactions.length} transactions · {accounts.length} accounts
+                <div className="text-base font-extrabold text-white tracking-tight">{profile?.name || 'FinTrack User'}</div>
+                <div className="text-xs text-neo-muted">{authUser?.email || 'Logged in with Google'}</div>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-neo-neonGreen/10 border border-neo-neonGreen/20 text-neo-neonGreen rounded-full flex items-center gap-1">
+                    <Cloud className="w-3 h-3" /> Turso Cloud Connected
+                  </span>
+                  <span className="text-[11px] text-neo-muted font-mono">{profile?.currencyCode}</span>
                 </div>
               </div>
             </div>
-            <button onClick={startEdit} className="p-2 text-ft-muted hover:text-ft-green hover:bg-ft-green/10 rounded-xl transition-all">
+            <button
+              onClick={startEdit}
+              className="p-2 text-neo-muted hover:text-neo-neonGreen hover:bg-neo-bg rounded-xl transition-all"
+              title="Edit Profile"
+            >
               <Pencil className="w-4 h-4" />
             </button>
           </div>
         )}
       </div>
 
-      {/* Data */}
-      <div className="bg-ft-card border border-ft-border rounded-2xl divide-y divide-ft-border overflow-hidden">
-        <div className="px-4 py-2.5">
-          <span className="text-[10px] font-bold text-ft-muted uppercase tracking-wider">Data</span>
+      {/* Cloud & Data Management Section */}
+      <div className="bg-neo-card border border-neo-border rounded-3xl divide-y divide-neo-border/50 overflow-hidden shadow-neo-card">
+        <div className="px-5 py-3 bg-neo-surface">
+          <span className="text-[10px] font-bold text-neo-muted uppercase tracking-wider">Features & Preferences</span>
         </div>
-        <button onClick={handleExport}
-          className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-ft-border/10 transition-all text-left">
-          <div className="w-9 h-9 rounded-xl bg-ft-green/10 text-ft-green border border-ft-green/20 flex items-center justify-center">
-            <Download className="w-4 h-4" />
+
+        <button
+          onClick={() => setActiveTab('categories')}
+          className="w-full flex items-center gap-3.5 px-5 py-4 hover:bg-neo-surface transition-all text-left group"
+        >
+          <div className="w-10 h-10 rounded-2xl bg-neo-cyan/10 border border-neo-cyan/25 text-neo-cyan flex items-center justify-center flex-shrink-0">
+            <FileJson className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-xs font-semibold text-ft-text">Export Backup (JSON)</div>
-            <div className="text-[11px] text-ft-muted">Download a local copy of all your data</div>
+            <div className="text-xs font-bold text-white group-hover:text-neo-cyan transition-colors">Manage Category Hub</div>
+            <div className="text-[11px] text-neo-muted">Configure custom icons, tags & categories</div>
           </div>
         </button>
-        <button onClick={() => setActiveTab('categories')}
-          className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-ft-border/10 transition-all text-left">
-          <div className="w-9 h-9 rounded-xl bg-ft-orange/10 text-ft-orange border border-ft-orange/20 flex items-center justify-center">
-            <FileJson className="w-4 h-4" />
+
+        <button
+          onClick={handleExport}
+          className="w-full flex items-center gap-3.5 px-5 py-4 hover:bg-neo-surface transition-all text-left group"
+        >
+          <div className="w-10 h-10 rounded-2xl bg-neo-emerald/10 border border-neo-emerald/25 text-neo-neonGreen flex items-center justify-center flex-shrink-0">
+            <Download className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-xs font-semibold text-ft-text">Manage Categories</div>
-            <div className="text-[11px] text-ft-muted">Add, rename or remove categories</div>
+            <div className="text-xs font-bold text-white group-hover:text-neo-neonGreen transition-colors">Download JSON Backup</div>
+            <div className="text-[11px] text-neo-muted">Save an offline snapshot of your complete database</div>
           </div>
         </button>
       </div>
 
-      {/* Sign out */}
-      <div className="bg-ft-card border border-ft-border rounded-2xl divide-y divide-ft-border overflow-hidden">
-        <button onClick={handleSignOut}
-          className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-ft-border/10 transition-all text-left">
-          <div className="w-9 h-9 rounded-xl bg-ft-red/10 text-ft-red border border-ft-red/20 flex items-center justify-center">
-            <LogOut className="w-4 h-4" />
+      {/* Sign Out Card */}
+      <div className="bg-neo-card border border-neo-crimson/20 rounded-3xl overflow-hidden shadow-neo-card">
+        <button
+          onClick={handleSignOut}
+          className="w-full flex items-center gap-3.5 px-5 py-4 hover:bg-neo-crimson/10 transition-all text-left"
+        >
+          <div className="w-10 h-10 rounded-2xl bg-neo-crimson/15 border border-neo-crimson/30 text-neo-coral flex items-center justify-center flex-shrink-0">
+            <LogOut className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-xs font-semibold text-ft-text">Sign Out</div>
-            <div className="text-[11px] text-ft-muted">Your data stays safe in the cloud</div>
+            <div className="text-xs font-bold text-neo-coral">Sign Out</div>
+            <div className="text-[11px] text-neo-muted">Securely end session on this device</div>
           </div>
         </button>
       </div>
 
-      <p className="text-center text-[11px] text-ft-border">FinTrack Web · Data powered by Turso</p>
+      <p className="text-center text-[11px] text-neo-muted/60">
+        FinTrack Web Pro · Powered by Turso LibSQL & React
+      </p>
     </div>
   );
 };

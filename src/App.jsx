@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { PlusCircle } from 'lucide-react';
 import { Navbar }                 from './components/Navbar';
 import { BottomNav }              from './components/BottomNav';
 import { SignInScreen }           from './components/SignInScreen';
@@ -12,12 +11,11 @@ import { InsightsScreen }         from './components/InsightsScreen';
 import { MeScreen }               from './components/MeScreen';
 import { ManageCategoriesScreen } from './components/ManageCategoriesScreen';
 import { AddTransactionModal }    from './components/AddTransactionModal';
-import { ToastProvider }          from './components/Toast';
+import { ToastProvider, useToast } from './components/Toast';
 import { ConfirmProvider }        from './components/ConfirmDialog';
 import { netWorth as calcNetWorth } from './utils/financeCalculator';
 import { formatCurrency }         from './utils/formatters';
 import { api }                    from './services/api';
-import { useToast }               from './components/Toast';
 
 function AppInner() {
   const toast = useToast();
@@ -29,16 +27,26 @@ function AppInner() {
   const [isNewUser, setIsNewUser] = useState(false);
 
   // ── Data state ───────────────────────────────────────────────────────────
-  const [profile,   setProfile]   = useState(null);
-  const [accounts,  setAccounts]  = useState([]);
-  const [transactions, setTx]     = useState([]);
-  const [incCats,   setIncCats]   = useState([]);
-  const [expCats,   setExpCats]   = useState([]);
+  const [profile,      setProfile]      = useState(null);
+  const [accounts,     setAccounts]     = useState([]);
+  const [transactions, setTx]           = useState([]);
+  const [incCats,      setIncCats]      = useState([]);
+  const [expCats,      setExpCats]      = useState([]);
 
   // ── UI state ─────────────────────────────────────────────────────────────
   const [activeTab,    setActiveTab]    = useState('home');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [initialModalType, setInitialModalType] = useState('Expense');
   const [editTx,       setEditTx]       = useState(null);
+  const [isMasked,     setIsMasked]     = useState(() => localStorage.getItem('fintrack_masked') === 'true');
+
+  const toggleMask = useCallback(() => {
+    setIsMasked(prev => {
+      const next = !prev;
+      localStorage.setItem('fintrack_masked', String(next));
+      return next;
+    });
+  }, []);
 
   // ── Load all data from API ─────────────────────────────────────────────────
   const loadAll = useCallback(async () => {
@@ -89,7 +97,7 @@ function AppInner() {
 
   // ── Computed ───────────────────────────────────────────────────────────────
   const nw     = useMemo(() => calcNetWorth(accounts, transactions), [accounts, transactions]);
-  const fmtCur = useCallback(v => formatCurrency(v, profile?.currencyCode || 'INR'), [profile]);
+  const fmtCur = useCallback(v => formatCurrency(v, profile?.currencyCode || 'INR', isMasked), [profile, isMasked]);
 
   // ── Transaction handlers (optimistic) ─────────────────────────────────────
   const handleSaveTx = useCallback(async (tx) => {
@@ -97,9 +105,14 @@ function AppInner() {
       const idx = prev.findIndex(t => t.id === tx.id);
       return idx >= 0 ? prev.map(t => t.id === tx.id ? tx : t) : [...prev, tx];
     });
-    try { await api.saveTransaction(tx); }
-    catch { toast.error('Failed to save transaction.'); await loadAll(); }
-  }, [loadAll]);
+    try {
+      await api.saveTransaction(tx);
+      toast.success(editTx ? 'Transaction updated' : 'Transaction logged');
+    } catch {
+      toast.error('Failed to save transaction.');
+      await loadAll();
+    }
+  }, [editTx, loadAll]);
 
   const handleDeleteTx = useCallback(async (id) => {
     setTx(prev => prev.filter(t => t.id !== id));
@@ -117,13 +130,31 @@ function AppInner() {
   const handleCopyTx = useCallback(async (tx) => {
     const copy = { ...tx, id: Date.now(), date: Date.now(), note: tx.note ? 'Copy of ' + tx.note : '' };
     setTx(prev => [...prev, copy]);
-    try { await api.saveTransaction(copy); }
-    catch { toast.error('Failed to duplicate transaction.'); await loadAll(); }
+    try {
+      await api.saveTransaction(copy);
+      toast.success('Transaction duplicated');
+    } catch {
+      toast.error('Failed to duplicate transaction.');
+      await loadAll();
+    }
   }, [loadAll]);
 
-  const openEdit  = useCallback(tx => { setEditTx(tx); setShowAddModal(true); }, []);
-  const openAdd   = useCallback(() => { setEditTx(null); setShowAddModal(true); }, []);
-  const closeModal = useCallback(() => { setShowAddModal(false); setEditTx(null); }, []);
+  const openEdit = useCallback(tx => {
+    setEditTx(tx);
+    setInitialModalType(tx.type);
+    setShowAddModal(true);
+  }, []);
+
+  const openAdd = useCallback((type = 'Expense') => {
+    setEditTx(null);
+    setInitialModalType(type);
+    setShowAddModal(true);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setShowAddModal(false);
+    setEditTx(null);
+  }, []);
 
   // ── Account handlers ───────────────────────────────────────────────────────
   const handleAddAccount = useCallback(async acc => {
@@ -179,7 +210,6 @@ function AppInner() {
   if (!jwt) return <SignInScreen onSuccess={handleSignIn} />;
   if (loading) return <LoadingScreen />;
 
-  // New user: show profile setup to confirm name & set currency
   if (isNewUser) return (
     <ProfileSetupScreen
       defaultName={authUser?.name || ''}
@@ -195,17 +225,17 @@ function AppInner() {
   const renderScreen = () => {
     switch (activeTab) {
       case 'home':
-        return <Dashboard accounts={accounts} transactions={transactions} profile={profile} setActiveTab={setActiveTab} />;
+        return <Dashboard accounts={accounts} transactions={transactions} profile={profile} setActiveTab={setActiveTab} isMasked={isMasked} />;
       case 'activity':
         return <ActivityScreen transactions={transactions} accounts={accounts}
-          incomeCategories={incCats} expenseCategories={expCats} profile={profile}
+          incomeCategories={incCats} expenseCategories={expCats} profile={profile} isMasked={isMasked}
           onDelete={handleDeleteTx} onBulkDelete={handleBulkDelete}
           onEdit={openEdit} onCopy={handleCopyTx} />;
       case 'accounts':
-        return <Accounts accounts={accounts} transactions={transactions} profile={profile}
+        return <Accounts accounts={accounts} transactions={transactions} profile={profile} isMasked={isMasked}
           onAddAccount={handleAddAccount} onEditAccount={handleEditAccount} onDeleteAccount={handleDeleteAccount} />;
       case 'insights':
-        return <InsightsScreen transactions={transactions} profile={profile} />;
+        return <InsightsScreen transactions={transactions} profile={profile} isMasked={isMasked} />;
       case 'me':
         return <MeScreen profile={profile} authUser={authUser} transactions={transactions}
           accounts={accounts} incomeCategories={incCats} expenseCategories={expCats}
@@ -222,20 +252,34 @@ function AppInner() {
   };
 
   return (
-    <div className="min-h-screen bg-ft-bg">
-      <Navbar activeTab={activeTab} setActiveTab={setActiveTab}
+    <div className="min-h-screen bg-neo-bg text-neo-text">
+      <Navbar
+        activeTab={activeTab} setActiveTab={setActiveTab}
         onOpenAddModal={openAdd} profileName={profile?.name}
-        formatCurrency={fmtCur} netWorth={nw} />
-      <main className="max-w-5xl mx-auto px-4 py-5 pb-28 sm:pb-10">
+        formatCurrency={fmtCur} netWorth={nw}
+        isMasked={isMasked} onToggleMask={toggleMask}
+      />
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 pb-32 sm:pb-12">
         <div key={activeTab} className="animate-slideIn">{renderScreen()}</div>
       </main>
-      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
-      <button onClick={openAdd}
-        className="sm:hidden fixed bottom-20 right-5 z-50 w-14 h-14 flex items-center justify-center bg-ft-primary hover:bg-ft-green text-white rounded-full shadow-2xl shadow-ft-green/30 transition-all active:scale-90 border-2 border-ft-green/30">
-        <PlusCircle className="w-7 h-7" />
-      </button>
-      <AddTransactionModal isOpen={showAddModal} onClose={closeModal} onSave={handleSaveTx}
-        accounts={accounts} incomeCategories={incCats} expenseCategories={expCats} editTx={editTx} />
+
+      {/* Floating Bottom Nav for Mobile */}
+      <BottomNav
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onOpenAddWithType={openAdd}
+      />
+
+      <AddTransactionModal
+        isOpen={showAddModal}
+        onClose={closeModal}
+        onSave={handleSaveTx}
+        accounts={accounts}
+        incomeCategories={incCats}
+        expenseCategories={expCats}
+        editTx={editTx}
+        initialType={initialModalType}
+      />
     </div>
   );
 }

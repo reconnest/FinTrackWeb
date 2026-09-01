@@ -1,50 +1,51 @@
-export function formatCurrency(val, currencyCode = 'INR', showSign = false) {
-  if (val === undefined || val === null || isNaN(val)) return '0';
-  const num = Number(val);
-  const sign = num > 0 && showSign ? '+' : '';
-  return sign + new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: currencyCode || 'INR',
-    maximumFractionDigits: 0
-  }).format(num);
+const CURRENCY_SYMBOLS = {
+  INR: '₹', USD: '$', EUR: '€', GBP: '£', AED: 'AED ', SGD: 'S$',
+};
+
+export function formatCurrency(amount, currencyCode = 'INR', isMasked = false) {
+  if (isMasked) return '₹••••••';
+  const symbol = CURRENCY_SYMBOLS[currencyCode] || currencyCode + ' ';
+  const num = Math.round(Number(amount) || 0);
+  const formatted = num.toLocaleString('en-IN');
+  return `${symbol}${formatted}`;
 }
 
-export function formatCompact(val, currencyCode = 'INR') {
-  const num = Math.abs(Number(val));
-  const sign = Number(val) < 0 ? '-' : '';
-  const symbol = currencyCode === 'INR' ? '\u20B9' : currencyCode + ' ';
-  if (num >= 10000000) return sign + symbol + (num / 10000000).toFixed(1) + 'Cr';
-  if (num >= 100000)   return sign + symbol + (num / 100000).toFixed(1) + 'L';
-  if (num >= 1000)     return sign + symbol + (num / 1000).toFixed(1) + 'k';
-  return sign + symbol + num.toFixed(0);
+export function formatCompact(amount, currencyCode = 'INR', isMasked = false) {
+  if (isMasked) return '••••';
+  const symbol = CURRENCY_SYMBOLS[currencyCode] || currencyCode + ' ';
+  const abs = Math.abs(Number(amount) || 0);
+  const sign = (Number(amount) || 0) < 0 ? '-' : '';
+
+  if (abs >= 10000000) return `${sign}${symbol}${(abs / 10000000).toFixed(2)}Cr`;
+  if (abs >= 100000)   return `${sign}${symbol}${(abs / 100000).toFixed(1)}L`;
+  if (abs >= 1000)     return `${sign}${symbol}${(abs / 1000).toFixed(1)}k`;
+  return `${sign}${symbol}${abs.toLocaleString('en-IN')}`;
 }
 
-export function formatDate(timestamp) {
-  if (!timestamp) return '';
-  return new Date(timestamp).toLocaleDateString('en-IN', {
-    day: '2-digit', month: 'short', year: 'numeric'
-  });
+export function formatDate(ms) {
+  if (!ms) return '';
+  const d = new Date(Number(ms));
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${String(d.getDate()).padStart(2,'0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-export function formatDateShort(timestamp) {
-  if (!timestamp) return '';
-  return new Date(timestamp).toLocaleDateString('en-IN', {
-    day: '2-digit', month: 'short'
-  });
+export function formatDateShort(ms) {
+  if (!ms) return '';
+  const d = new Date(Number(ms));
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${d.getDate()} ${months[d.getMonth()]}`;
 }
 
-export function monthLabel(date) {
-  // date is a Date object or timestamp
-  const d = date instanceof Date ? date : new Date(date);
-  return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-}
-
-export function getMonthBounds(monthOffset) {
+export function monthLabel(offset = 0) {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + monthOffset;
-  const start = new Date(year, month, 1, 0, 0, 0, 0).getTime();
-  const end   = new Date(year, month + 1, 0, 23, 59, 59, 999).getTime();
-  const label = new Date(year, month, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-  return { start, end, label, year: new Date(year, month, 1).getFullYear(), month: new Date(year, month, 1).getMonth() };
+  const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+export function getMonthBounds(offset = 0) {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() + offset, 1, 0, 0, 0, 0).getTime();
+  const end   = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0, 23, 59, 59, 999).getTime();
+  return { start, end };
 }

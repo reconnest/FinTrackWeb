@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Search, FileDown, Trash2, Copy, Edit2, X } from 'lucide-react';
-import { formatDate, formatCompact } from '../utils/formatters';
+import { Search, FileDown, Trash2, Copy, Edit2, X, Calendar, Filter } from 'lucide-react';
+import { formatDate, formatCurrency } from '../utils/formatters';
+import { getCategoryMeta } from '../utils/categoryIcons';
 import { exportCSV } from '../utils/backup';
 import { useToast } from './Toast';
 import { useConfirm } from './ConfirmDialog';
@@ -8,7 +9,7 @@ import { EmptyState } from './EmptyState';
 
 export const ActivityScreen = ({
   transactions, accounts, incomeCategories, expenseCategories,
-  onDelete, onBulkDelete, onEdit, onCopy, profile
+  onDelete, onBulkDelete, onEdit, onCopy, profile, isMasked
 }) => {
   const [search, setSearch]         = useState('');
   const [filterType, setFilterType] = useState('ALL');
@@ -20,11 +21,11 @@ export const ActivityScreen = ({
   const currency = profile?.currencyCode || 'INR';
   const toast   = useToast();
   const confirm = useConfirm();
-  const fmt = v => formatCompact(v, currency);
+  const fmt = v => formatCurrency(v, currency, isMasked);
   const accountNames = useMemo(() => ['ALL', ...accounts.map(a => a.name)], [accounts]);
 
   const filtered = useMemo(() => {
-    const q   = search.toLowerCase();
+    const q = search.toLowerCase();
     const tsFrom = dateFrom ? new Date(dateFrom).getTime() : null;
     const tsTo   = dateTo   ? new Date(dateTo + 'T23:59:59').getTime() : null;
     return transactions
@@ -51,101 +52,92 @@ export const ActivityScreen = ({
     next.has(id) ? next.delete(id) : next.add(id);
     return next;
   });
+
   const toggleAll = () =>
     setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map(t => t.id)));
 
   const handleBulkDelete = async () => {
     if (!selected.size) return;
-    const ok = await confirm(`Permanently delete ${selected.size} transaction(s)? This cannot be undone.`, { title: 'Delete Transactions' });
-    if (ok) { onBulkDelete([...selected]); setSelected(new Set()); toast.success(`Deleted ${selected.size} transaction(s).`); }
+    const ok = await confirm(`Permanently delete ${selected.size} transaction(s)?`, { title: 'Bulk Delete' });
+    if (ok) { onBulkDelete([...selected]); setSelected(new Set()); toast.success(`Deleted ${selected.size} records`); }
   };
 
-  const TypeBadge = ({ type }) => (
-    <span className={`inline-block px-1.5 py-0.5 text-[9px] font-bold rounded ${
-      type === 'Income'   ? 'bg-ft-green/10 text-ft-green' :
-      type === 'Transfer' ? 'bg-ft-blue/10  text-ft-blue'  :
-      'bg-ft-red/10 text-ft-red'
-    }`}>{type}</span>
-  );
-
   return (
-    <div className="space-y-4 pb-12">
+    <div className="space-y-5 pb-12">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-extrabold text-white tracking-tight">Activity</h1>
-          <p className="text-ft-muted text-xs">{filtered.length} of {transactions.length} transactions</p>
+          <h1 className="text-xl font-extrabold text-white tracking-tight">Activity Log</h1>
+          <p className="text-xs text-neo-muted">{filtered.length} of {transactions.length} records shown</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           {selected.size > 0 && (
-            <button onClick={handleBulkDelete}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-ft-red bg-ft-red/10 border border-ft-red/20 rounded-xl hover:bg-ft-red/20 transition-all">
+            <button
+              onClick={handleBulkDelete}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-neo-coral bg-neo-crimson/15 border border-neo-crimson/30 rounded-xl hover:bg-neo-crimson/25 transition-all"
+            >
               <Trash2 className="w-3.5 h-3.5" /> Delete {selected.size}
             </button>
           )}
-          <button onClick={() => exportCSV(filtered, currency)}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-ft-text bg-ft-card border border-ft-border rounded-xl hover:bg-ft-border/30 transition-all">
-            <FileDown className="w-3.5 h-3.5 text-ft-green" /> Export CSV
+          <button
+            onClick={() => exportCSV(filtered, currency)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-neo-surface border border-neo-border hover:border-neo-borderLight rounded-xl shadow-sm transition-all"
+          >
+            <FileDown className="w-3.5 h-3.5 text-neo-neonGreen" /> Export CSV
           </button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="space-y-2">
-        {/* Row 1: Search + Type + Account */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      {/* Filter Toolbar */}
+      <div className="bg-neo-surface border border-neo-border rounded-3xl p-4 space-y-3 shadow-neo-card">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ft-muted" />
-            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search note, category, account..."
-              className="w-full bg-ft-card border border-ft-border rounded-xl pl-8 pr-3 py-2 text-xs text-white placeholder-ft-border focus:outline-none focus:border-ft-green" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neo-muted" />
+            <input
+              type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search category, note, account..."
+              className="w-full bg-neo-bg border border-neo-border rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-neo-muted/60 focus:outline-none focus:border-neo-neonGreen"
+            />
           </div>
-          <select value={filterType} onChange={e => setFilterType(e.target.value)}
-            className="bg-ft-card border border-ft-border rounded-xl px-3 py-2 text-xs text-ft-text focus:outline-none focus:border-ft-green">
+          <select
+            value={filterType} onChange={e => setFilterType(e.target.value)}
+            className="bg-neo-bg border border-neo-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-neo-neonGreen"
+          >
             <option value="ALL">All Types</option>
-            <option value="Income">Income</option>
-            <option value="Expense">Expense</option>
-            <option value="Transfer">Transfer</option>
+            <option value="Income">Income (+)</option>
+            <option value="Expense">Expense (-)</option>
+            <option value="Transfer">Transfer (⇆)</option>
           </select>
-          <select value={filterAccount} onChange={e => setFilterAccount(e.target.value)}
-            className="bg-ft-card border border-ft-border rounded-xl px-3 py-2 text-xs text-ft-text focus:outline-none focus:border-ft-green">
+          <select
+            value={filterAccount} onChange={e => setFilterAccount(e.target.value)}
+            className="bg-neo-bg border border-neo-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-neo-neonGreen"
+          >
             {accountNames.map(n => <option key={n} value={n}>{n === 'ALL' ? 'All Accounts' : n}</option>)}
           </select>
         </div>
 
-        {/* Row 2: Date range */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-2 bg-ft-card border border-ft-border rounded-xl px-3 py-1.5">
-            <label className="text-[10px] font-semibold text-ft-muted uppercase tracking-wide whitespace-nowrap">From</label>
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              className="bg-transparent text-xs text-ft-text focus:outline-none" />
+        {/* Date Row */}
+        <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-neo-border/50 text-xs">
+          <div className="flex items-center gap-2 bg-neo-bg border border-neo-border rounded-xl px-3 py-1.5">
+            <span className="text-[10px] font-bold text-neo-muted uppercase">From</span>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="bg-transparent text-xs text-white focus:outline-none" />
           </div>
-          <div className="flex items-center gap-2 bg-ft-card border border-ft-border rounded-xl px-3 py-1.5">
-            <label className="text-[10px] font-semibold text-ft-muted uppercase tracking-wide whitespace-nowrap">To</label>
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              className="bg-transparent text-xs text-ft-text focus:outline-none" />
+          <div className="flex items-center gap-2 bg-neo-bg border border-neo-border rounded-xl px-3 py-1.5">
+            <span className="text-[10px] font-bold text-neo-muted uppercase">To</span>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="bg-transparent text-xs text-white focus:outline-none" />
           </div>
           {(search || filterType !== 'ALL' || filterAccount !== 'ALL' || hasDateFilter) && (
-            <button onClick={clearFilters}
-              className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-medium text-ft-muted bg-ft-card border border-ft-border rounded-xl hover:text-white transition-all">
-              <X className="w-3 h-3" /> Clear filters
+            <button onClick={clearFilters} className="flex items-center gap-1 px-3 py-1.5 text-xs text-neo-muted hover:text-white bg-neo-card border border-neo-border rounded-xl transition-all">
+              <X className="w-3 h-3" /> Reset Filters
             </button>
-          )}
-          {hasDateFilter && (
-            <span className="text-[10px] text-ft-green font-medium">
-              📅 Date filter active
-            </span>
           )}
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-ft-card border border-ft-border rounded-2xl overflow-hidden">
-        <div className="grid grid-cols-[auto_1fr_auto_auto] sm:grid-cols-[auto_1fr_1fr_auto_auto_auto] items-center gap-3 px-4 py-2.5 border-b border-ft-border bg-ft-surface text-[10px] font-bold text-ft-muted uppercase tracking-wider">
-          <input type="checkbox"
-            checked={selected.size === filtered.length && filtered.length > 0}
-            onChange={toggleAll}
-            className="w-3.5 h-3.5 accent-ft-green" />
+      {/* Transactions List */}
+      <div className="bg-neo-card border border-neo-border rounded-3xl overflow-hidden shadow-neo-card">
+        <div className="grid grid-cols-[auto_1fr_auto_auto] sm:grid-cols-[auto_1fr_1fr_auto_auto_auto] items-center gap-3 px-5 py-3 border-b border-neo-border bg-neo-surface text-[10px] font-extrabold text-neo-muted uppercase tracking-wider">
+          <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleAll} className="w-3.5 h-3.5 accent-neo-emerald rounded cursor-pointer" />
           <span>Description</span>
           <span className="hidden sm:block">Account</span>
           <span className="hidden sm:block text-center">Type</span>
@@ -154,43 +146,77 @@ export const ActivityScreen = ({
         </div>
 
         {filtered.length === 0 ? (
-          <EmptyState type="transactions" title="No transactions found" subtitle="Try adjusting your filters, or add your first transaction." />
+          <EmptyState type="transactions" title="No transactions found" subtitle="Try tweaking your filters or create a new entry." />
         ) : (
-          <div className="divide-y divide-ft-border">
-            {filtered.map(tx => (
-              <div key={tx.id}
-                className={`grid grid-cols-[auto_1fr_auto_auto] sm:grid-cols-[auto_1fr_1fr_auto_auto_auto] items-center gap-3 px-4 py-3 group hover:bg-ft-border/10 transition-all ${selected.has(tx.id) ? 'bg-ft-primary/5' : ''}`}>
-                <input type="checkbox" checked={selected.has(tx.id)} onChange={() => toggleSelect(tx.id)}
-                  className="w-3.5 h-3.5 accent-ft-green" />
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold text-ft-text truncate">{tx.note || tx.category}</div>
-                  <div className="text-[10px] text-ft-muted">{tx.category} · {formatDate(tx.date)}</div>
+          <div className="divide-y divide-neo-border/50">
+            {filtered.map(tx => {
+              const meta = getCategoryMeta(tx.category);
+              const isInc = tx.type === 'Income';
+              const isTrf = tx.type === 'Transfer';
+              const isSel = selected.has(tx.id);
+
+              return (
+                <div
+                  key={tx.id}
+                  className={`grid grid-cols-[auto_1fr_auto_auto] sm:grid-cols-[auto_1fr_1fr_auto_auto_auto] items-center gap-3 px-5 py-3.5 hover:bg-neo-surface/70 transition-all group ${
+                    isSel ? 'bg-neo-surface border-l-2 border-neo-neonGreen' : ''
+                  }`}
+                >
+                  <input type="checkbox" checked={isSel} onChange={() => toggleSelect(tx.id)} className="w-3.5 h-3.5 accent-neo-emerald rounded cursor-pointer" />
+
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base border ${meta.bg} ${meta.border}`}>
+                      {meta.emoji}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-white truncate max-w-[140px] sm:max-w-none">{tx.note || tx.category}</div>
+                      <div className="text-[10px] text-neo-muted">{tx.category} · {formatDate(tx.date)}</div>
+                    </div>
+                  </div>
+
+                  <div className="hidden sm:block text-xs text-neo-muted truncate font-medium">
+                    {tx.account}{tx.toAccount ? ' → ' + tx.toAccount : ''}
+                  </div>
+
+                  <div className="hidden sm:flex justify-center">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      isInc ? 'bg-neo-neonGreen/10 border-neo-neonGreen/30 text-neo-neonGreen' :
+                      isTrf ? 'bg-neo-cyan/10 border-neo-cyan/30 text-neo-cyan' :
+                      'bg-neo-crimson/10 border-neo-crimson/30 text-neo-coral'
+                    }`}>
+                      {tx.type}
+                    </span>
+                  </div>
+
+                  <div className={`text-right font-mono font-bold text-xs ${
+                    isInc ? 'text-neo-neonGreen' : isTrf ? 'text-neo-cyan' : 'text-neo-text'
+                  }`}>
+                    {isInc ? '+' : isTrf ? '' : '-'}{fmt(tx.amount)}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-1 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => onCopy(tx)} title="Duplicate" className="p-1.5 text-neo-muted hover:text-white bg-neo-surface hover:bg-neo-border rounded-lg transition-all">
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => onEdit(tx)} title="Edit" className="p-1.5 text-neo-muted hover:text-neo-neonGreen bg-neo-surface hover:bg-neo-neonGreen/15 rounded-lg transition-all">
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (await confirm('Permanently delete this transaction?', { title: 'Delete Entry' })) {
+                          onDelete(tx.id);
+                          toast.success('Transaction deleted');
+                        }
+                      }}
+                      title="Delete"
+                      className="p-1.5 text-neo-muted hover:text-neo-coral bg-neo-surface hover:bg-neo-crimson/20 rounded-lg transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <div className="hidden sm:block text-xs text-ft-muted truncate">
-                  {tx.account}{tx.toAccount ? ' → ' + tx.toAccount : ''}
-                </div>
-                <div className="hidden sm:flex justify-center"><TypeBadge type={tx.type} /></div>
-                <div className={`text-right font-mono font-bold text-xs ${
-                  tx.type==='Income' ? 'text-ft-green' : tx.type==='Transfer' ? 'text-ft-blue' : 'text-ft-text'
-                }`}>
-                  {tx.type==='Income' ? '+' : tx.type==='Transfer' ? '' : '-'}{fmt(tx.amount)}
-                </div>
-                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => onCopy(tx)} title="Duplicate"
-                    className="p-1 text-ft-muted hover:text-white hover:bg-ft-border/40 rounded-lg transition-all">
-                    <Copy className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={() => onEdit(tx)} title="Edit"
-                    className="p-1 text-ft-muted hover:text-ft-green hover:bg-ft-green/10 rounded-lg transition-all">
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={async () => { if (await confirm('Delete this transaction?', { title: 'Delete Transaction' })) { onDelete(tx.id); toast.success('Transaction deleted.'); } }} title="Delete"
-                    className="p-1 text-ft-muted hover:text-ft-red hover:bg-ft-red/10 rounded-lg transition-all">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

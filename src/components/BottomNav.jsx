@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Activity, Wallet, BarChart3, User, Plus, ArrowUpRight, ArrowDownLeft, RefreshCw, X } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Activity, Wallet, BarChart3, User, Plus, ArrowUpRight, ArrowDownLeft, RefreshCw } from 'lucide-react';
 
 const TABS = [
-  { id: 'home',     label: 'Home',     Icon: LayoutDashboard },
-  { id: 'activity', label: 'Activity', Icon: Activity        },
-  { id: 'accounts', label: 'Accounts', Icon: Wallet          },
-  { id: 'insights', label: 'Insights', Icon: BarChart3       },
-  { id: 'me',       label: 'Profile',  Icon: User            },
+  { path: '/dashboard', label: 'Home',     Icon: LayoutDashboard },
+  { path: '/activity',  label: 'Activity', Icon: Activity        },
+  { path: '/accounts',  label: 'Accounts', Icon: Wallet          },
+  { path: '/insights',  label: 'Insights', Icon: BarChart3       },
+  { path: '/settings',  label: 'Profile',  Icon: User            },
 ];
 
-export const BottomNav = ({ activeTab, setActiveTab, onOpenAddWithType }) => {
+export const BottomNav = ({ onOpenAddWithType }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [dialOpen, setDialOpen] = useState(false);
 
   const handleAction = (type) => {
@@ -19,7 +22,6 @@ export const BottomNav = ({ activeTab, setActiveTab, onOpenAddWithType }) => {
 
   return (
     <>
-      {/* Neo Backdrop when Dial is Open */}
       {dialOpen && (
         <div
           onClick={() => setDialOpen(false)}
@@ -27,7 +29,6 @@ export const BottomNav = ({ activeTab, setActiveTab, onOpenAddWithType }) => {
         />
       )}
 
-      {/* Floating Action Dial Popup (Mobile) */}
       {dialOpen && (
         <div className="sm:hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 animate-slideUp">
           <button
@@ -65,13 +66,12 @@ export const BottomNav = ({ activeTab, setActiveTab, onOpenAddWithType }) => {
       {/* Floating Bottom Dock (Mobile) */}
       <nav className="sm:hidden fixed bottom-3 left-3 right-3 z-40 bg-neo-surface/95 backdrop-blur-xl border border-neo-border rounded-3xl shadow-neo-card px-2 py-1.5">
         <div className="flex items-center justify-around relative">
-          {/* First 2 tabs */}
-          {TABS.slice(0, 2).map(({ id, label, Icon }) => {
-            const active = activeTab === id;
+          {TABS.slice(0, 2).map(({ path, label, Icon }) => {
+            const active = location.pathname === path || (path === '/dashboard' && location.pathname === '/');
             return (
               <button
-                key={id}
-                onClick={() => { setDialOpen(false); setActiveTab(id); }}
+                key={path}
+                onClick={() => { setDialOpen(false); navigate(path); }}
                 className={`flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-2xl transition-all ${
                   active ? 'text-neo-neonGreen font-bold' : 'text-neo-muted hover:text-white'
                 }`}
@@ -97,13 +97,12 @@ export const BottomNav = ({ activeTab, setActiveTab, onOpenAddWithType }) => {
             </button>
           </div>
 
-          {/* Last 3 tabs */}
-          {TABS.slice(2).map(({ id, label, Icon }) => {
-            const active = activeTab === id;
+          {TABS.slice(2).map(({ path, label, Icon }) => {
+            const active = location.pathname === path;
             return (
               <button
-                key={id}
-                onClick={() => { setDialOpen(false); setActiveTab(id); }}
+                key={path}
+                onClick={() => { setDialOpen(false); navigate(path); }}
                 className={`flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-2xl transition-all ${
                   active ? 'text-neo-neonGreen font-bold' : 'text-neo-muted hover:text-white'
                 }`}

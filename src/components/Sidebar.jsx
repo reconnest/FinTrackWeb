@@ -1,21 +1,24 @@
 import React from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Activity, Wallet, BarChart3, User,
   Plus, ChevronLeft, ChevronRight, Cloud
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { id: 'home',     label: 'Dashboard', Icon: LayoutDashboard },
-  { id: 'activity', label: 'Activity Log', Icon: Activity     },
-  { id: 'accounts', label: 'Cards & Accounts', Icon: Wallet   },
-  { id: 'insights', label: 'Analytics', Icon: BarChart3       },
-  { id: 'me',       label: 'Settings & Profile', Icon: User   },
+  { path: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
+  { path: '/activity',  label: 'Activity Log', Icon: Activity     },
+  { path: '/accounts',  label: 'Cards & Accounts', Icon: Wallet   },
+  { path: '/insights',  label: 'Analytics', Icon: BarChart3       },
+  { path: '/settings',  label: 'Settings & Profile', Icon: User   },
 ];
 
 export const Sidebar = ({
-  activeTab, setActiveTab, onOpenAddModal,
-  collapsed, setCollapsed, profile
+  onOpenAddModal, collapsed, setCollapsed, profile
 }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const initials = profile?.name
     ? profile.name.trim().split(/\s+/).map(w => w[0].toUpperCase()).slice(0, 2).join('')
     : 'FT';
@@ -31,7 +34,7 @@ export const Sidebar = ({
         <div className="flex items-center justify-between">
           <div
             className="flex items-center gap-3 cursor-pointer group"
-            onClick={() => setActiveTab('home')}
+            onClick={() => navigate('/dashboard')}
           >
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-neo-emerald to-neo-cyan p-[1.5px] shadow-neo-glow-green flex-shrink-0">
               <div className="w-full h-full bg-neo-card rounded-[14px] flex items-center justify-center">
@@ -73,12 +76,12 @@ export const Sidebar = ({
 
         {/* Navigation Menu */}
         <nav className="space-y-1 pt-2">
-          {NAV_ITEMS.map(({ id, label, Icon }) => {
-            const active = activeTab === id;
+          {NAV_ITEMS.map(({ path, label, Icon }) => {
+            const active = location.pathname === path || (path === '/dashboard' && location.pathname === '/');
             return (
               <button
-                key={id}
-                onClick={() => setActiveTab(id)}
+                key={path}
+                onClick={() => navigate(path)}
                 className={`w-full flex items-center gap-3 py-2.5 rounded-2xl text-xs font-bold transition-all ${
                   collapsed ? 'justify-center px-0' : 'px-3.5'
                 } ${
@@ -105,7 +108,7 @@ export const Sidebar = ({
         )}
 
         <div
-          onClick={() => setActiveTab('me')}
+          onClick={() => navigate('/settings')}
           className={`flex items-center gap-3 p-1.5 rounded-2xl hover:bg-neo-card cursor-pointer transition-all ${
             collapsed ? 'justify-center' : ''
           }`}

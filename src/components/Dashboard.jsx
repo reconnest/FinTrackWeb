@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, TrendingUp, TrendingDown, ArrowUpRight,
   ArrowDownLeft, Sparkles, Wallet, CreditCard, ChevronRight as ChevronRightIcon,
@@ -54,7 +55,8 @@ function spendingSuggestionCandidates(monthExpense, catPatterns, historicalCats,
   return candidates;
 }
 
-export const Dashboard = ({ accounts, transactions, profile, setActiveTab, onInspectTx, isMasked }) => {
+export const Dashboard = ({ accounts, transactions, profile, onInspectTx, isMasked }) => {
+  const navigate = useNavigate();
   const [monthOffset, setMonthOffset] = useState(0);
   const currency = profile?.currencyCode || 'INR';
 
@@ -202,7 +204,7 @@ export const Dashboard = ({ accounts, transactions, profile, setActiveTab, onIns
           </div>
           <div className="pt-4 mt-4 border-t border-neo-border/40 flex items-center justify-between">
             <span className="text-[10px] text-neo-muted">Monthly trend</span>
-            <button onClick={() => setActiveTab('insights')} className="text-xs font-bold text-neo-purple hover:text-white flex items-center gap-1 transition-colors">
+            <button onClick={() => navigate('/insights')} className="text-xs font-bold text-neo-purple hover:text-white flex items-center gap-1 transition-colors">
               Analytics <ChevronRightIcon className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -216,7 +218,7 @@ export const Dashboard = ({ accounts, transactions, profile, setActiveTab, onIns
             <Wallet className="w-4 h-4 text-neo-cyan" />
             <h2 className="text-sm font-bold text-white tracking-tight">Cards & Accounts</h2>
           </div>
-          <button onClick={() => setActiveTab('accounts')} className="text-xs font-semibold text-neo-cyan hover:underline">
+          <button onClick={() => navigate('/accounts')} className="text-xs font-semibold text-neo-cyan hover:underline">
             Manage ({accounts.length})
           </button>
         </div>
@@ -306,7 +308,7 @@ export const Dashboard = ({ accounts, transactions, profile, setActiveTab, onIns
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-white">Recent Activity</h3>
-              <button onClick={() => setActiveTab('activity')} className="text-xs font-semibold text-neo-cyan hover:underline">
+              <button onClick={() => navigate('/activity')} className="text-xs font-semibold text-neo-cyan hover:underline">
                 View All
               </button>
             </div>

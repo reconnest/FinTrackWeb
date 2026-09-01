@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { User, Download, FileJson, Pencil, Check, X, LogOut, Cloud, Moon, Sun, Smartphone } from 'lucide-react';
 import { exportBackupJSON } from '../utils/backup';
 import { useToast } from './Toast';
@@ -15,8 +16,9 @@ const CURRENCIES = [
 
 export const MeScreen = ({
   profile, authUser, transactions, accounts, incomeCategories, expenseCategories,
-  onUpdateProfile, onSignOut, setActiveTab, themeMode, onToggleTheme
+  onUpdateProfile, onSignOut, themeMode, onToggleTheme
 }) => {
+  const navigate = useNavigate();
   const toast   = useToast();
   const confirm = useConfirm();
   const [editing,  setEditing]  = useState(false);
@@ -147,7 +149,7 @@ export const MeScreen = ({
 
         {/* Category Management */}
         <button
-          onClick={() => setActiveTab('categories')}
+          onClick={() => navigate('/categories')}
           className="w-full flex items-center gap-3.5 px-5 py-4 hover:bg-neo-surface transition-all text-left group"
         >
           <div className="w-10 h-10 rounded-2xl bg-neo-cyan/10 border border-neo-cyan/25 text-neo-cyan flex items-center justify-center flex-shrink-0">

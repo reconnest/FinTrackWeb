@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Navbar }                 from './components/Navbar';
 import { Sidebar }                from './components/Sidebar';
 import { BottomNav }              from './components/BottomNav';
 import { CommandPalette }         from './components/CommandPalette';
 import { TransactionDrawer }      from './components/TransactionDrawer';
-import { SignInScreen }           from './components/SignInScreen';
+import { LandingPage }            from './components/LandingPage';
 import { ProfileSetupScreen }     from './components/ProfileSetupScreen';
 import { LoadingScreen }          from './components/LoadingScreen';
 import { Dashboard }              from './components/Dashboard';
@@ -22,6 +23,8 @@ import { api }                    from './services/api';
 
 function AppInner() {
   const toast = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // ── Auth state ───────────────────────────────────────────────────────────
   const [jwt,       setJwt]       = useState(() => localStorage.getItem('fintrack_jwt'));
@@ -37,7 +40,6 @@ function AppInner() {
   const [expCats,      setExpCats]      = useState([]);
 
   // ── UI / Layout state ────────────────────────────────────────────────────
-  const [activeTab,        setActiveTab]        = useState('home');
   const [showAddModal,     setShowAddModal]     = useState(false);
   const [initialModalType, setInitialModalType] = useState('Expense');
   const [editTx,           setEditTx]           = useState(null);
@@ -47,7 +49,6 @@ function AppInner() {
   const [isMasked,         setIsMasked]         = useState(() => localStorage.getItem('fintrack_masked') === 'true');
   const [themeMode,        setThemeMode]        = useState(() => localStorage.getItem('fintrack_theme') || 'midnight');
 
-  // Toggle mask
   const toggleMask = useCallback(() => {
     setIsMasked(prev => {
       const next = !prev;
@@ -56,7 +57,6 @@ function AppInner() {
     });
   }, []);
 
-  // Toggle OLED theme
   const toggleTheme = useCallback(() => {
     setThemeMode(prev => {
       const next = prev === 'oled' ? 'midnight' : 'oled';
@@ -65,13 +65,11 @@ function AppInner() {
     });
   }, []);
 
-  // Sidebar collapse toggle
   const toggleSidebar = useCallback((val) => {
     setSidebarCollapsed(val);
     localStorage.setItem('fintrack_sidebar_collapsed', String(val));
   }, []);
 
-  // Apply theme class to document body
   useEffect(() => {
     if (themeMode === 'oled') {
       document.body.style.backgroundColor = '#000000';
@@ -124,7 +122,8 @@ function AppInner() {
     localStorage.setItem('fintrack_jwt', token);
     setJwt(token);
     setIsNewUser(newUser);
-  }, []);
+    navigate('/dashboard');
+  }, [navigate]);
 
   // ── Sign-out ───────────────────────────────────────────────────────────────
   const handleSignOut = useCallback(() => {
@@ -136,8 +135,8 @@ function AppInner() {
     setTx([]);
     setIncCats([]);
     setExpCats([]);
-    setActiveTab('home');
-  }, []);
+    navigate('/');
+  }, [navigate]);
 
   // ── Computed ───────────────────────────────────────────────────────────────
   const nw     = useMemo(() => calcNetWorth(accounts, transactions), [accounts, transactions]);
@@ -250,10 +249,20 @@ function AppInner() {
     catch { toast.error('Failed to update profile.'); }
   }, []);
 
-  // ── Gates ──────────────────────────────────────────────────────────────────
-  if (!jwt) return <SignInScreen onSuccess={handleSignIn} />;
+  // ── Auth Loading Gate ──────────────────────────────────────────────────────
   if (loading) return <LoadingScreen />;
 
+  // ── Unauthenticated Visitor: Show Landing Page ────────────────────────────
+  if (!jwt) {
+    return (
+      <Routes>
+        <Route path="/" element={<LandingPage onSuccess={handleSignIn} />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    );
+  }
+
+  // ── New User Gate (First Setup) ───────────────────────────────────────────
   if (isNewUser) return (
     <ProfileSetupScreen
       defaultName={authUser?.name || ''}
@@ -261,90 +270,147 @@ function AppInner() {
         setProfile(p);
         setIsNewUser(false);
         try { await api.updateUser(p); } catch {}
+        navigate('/dashboard');
       }}
     />
   );
 
-  // ── Screen renderer ────────────────────────────────────────────────────────
-  const renderScreen = () => {
-    switch (activeTab) {
-      case 'home':
-        return <Dashboard accounts={accounts} transactions={transactions} profile={profile} setActiveTab={setActiveTab} onInspectTx={setInspectTx} isMasked={isMasked} />;
-      case 'activity':
-        return <ActivityScreen transactions={transactions} accounts={accounts}
-          incomeCategories={incCats} expenseCategories={expCats} profile={profile} isMasked={isMasked}
-          onDelete={handleDeleteTx} onBulkDelete={handleBulkDelete}
-          onEdit={openEdit} onCopy={handleCopyTx} onInspect={setInspectTx} />;
-      case 'accounts':
-        return <Accounts accounts={accounts} transactions={transactions} profile={profile} isMasked={isMasked}
-          onAddAccount={handleAddAccount} onEditAccount={handleEditAccount} onDeleteAccount={handleDeleteAccount} />;
-      case 'insights':
-        return <InsightsScreen transactions={transactions} profile={profile} isMasked={isMasked} />;
-      case 'me':
-        return <MeScreen profile={profile} authUser={authUser} transactions={transactions}
-          accounts={accounts} incomeCategories={incCats} expenseCategories={expCats}
-          onUpdateProfile={handleUpdateProfile} onSignOut={handleSignOut} setActiveTab={setActiveTab}
-          themeMode={themeMode} onToggleTheme={toggleTheme} />;
-      case 'categories':
-        return <ManageCategoriesScreen
-          incomeCategories={incCats} expenseCategories={expCats}
-          onAddIncome={handleAddIncomeCat}     onDeleteIncome={handleDelIncomeCat}     onRenameIncome={handleRenameIncomeCat}
-          onAddExpense={handleAddExpenseCat}   onDeleteExpense={handleDelExpenseCat}   onRenameExpense={handleRenameExpenseCat}
-          DEFAULT_INCOME={['Salary','Freelance','Interest','Bonus','Other']}
-          DEFAULT_EXPENSE={['Food','Groceries','Transport','Shopping','Entertainment','Health','Utilities','Rent','Education','Travel','Subscriptions','Other']} />;
-      default: return null;
-    }
-  };
-
+  // ── Authenticated User App Shell ──────────────────────────────────────────
   return (
     <div className={`min-h-screen text-neo-text flex ${themeMode === 'oled' ? 'bg-black' : 'bg-neo-bg'}`}>
       {/* Collapsible Left Sidebar for Desktop */}
       <Sidebar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
         onOpenAddModal={openAdd}
-        onOpenCmdPalette={() => setShowCmdPalette(true)}
         collapsed={sidebarCollapsed}
         setCollapsed={toggleSidebar}
         profile={profile}
-        netWorth={nw}
-        formatCurrency={fmtCur}
-        isMasked={isMasked}
       />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         <Navbar
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
           onOpenAddModal={openAdd}
           onOpenCmdPalette={() => setShowCmdPalette(true)}
           profileName={profile?.name}
-          formatCurrency={fmtCur}
-          netWorth={nw}
           isMasked={isMasked}
           onToggleMask={toggleMask}
-          themeMode={themeMode}
-          onToggleTheme={toggleTheme}
         />
 
         <main className="max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 pb-32 sm:pb-12 flex-1">
-          <div key={activeTab} className="animate-slideIn">{renderScreen()}</div>
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route
+              path="/dashboard"
+              element={
+                <div key={location.pathname} className="animate-slideIn">
+                  <Dashboard
+                    accounts={accounts}
+                    transactions={transactions}
+                    profile={profile}
+                    onInspectTx={setInspectTx}
+                    isMasked={isMasked}
+                  />
+                </div>
+              }
+            />
+            <Route
+              path="/activity"
+              element={
+                <div key={location.pathname} className="animate-slideIn">
+                  <ActivityScreen
+                    transactions={transactions}
+                    accounts={accounts}
+                    incomeCategories={incCats}
+                    expenseCategories={expCats}
+                    profile={profile}
+                    isMasked={isMasked}
+                    onDelete={handleDeleteTx}
+                    onBulkDelete={handleBulkDelete}
+                    onEdit={openEdit}
+                    onCopy={handleCopyTx}
+                    onInspect={setInspectTx}
+                  />
+                </div>
+              }
+            />
+            <Route
+              path="/accounts"
+              element={
+                <div key={location.pathname} className="animate-slideIn">
+                  <Accounts
+                    accounts={accounts}
+                    transactions={transactions}
+                    profile={profile}
+                    isMasked={isMasked}
+                    onAddAccount={handleAddAccount}
+                    onEditAccount={handleEditAccount}
+                    onDeleteAccount={handleDeleteAccount}
+                  />
+                </div>
+              }
+            />
+            <Route
+              path="/insights"
+              element={
+                <div key={location.pathname} className="animate-slideIn">
+                  <InsightsScreen
+                    transactions={transactions}
+                    profile={profile}
+                    isMasked={isMasked}
+                  />
+                </div>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <div key={location.pathname} className="animate-slideIn">
+                  <MeScreen
+                    profile={profile}
+                    authUser={authUser}
+                    transactions={transactions}
+                    accounts={accounts}
+                    incomeCategories={incCats}
+                    expenseCategories={expCats}
+                    onUpdateProfile={handleUpdateProfile}
+                    onSignOut={handleSignOut}
+                    themeMode={themeMode}
+                    onToggleTheme={toggleTheme}
+                  />
+                </div>
+              }
+            />
+            <Route
+              path="/categories"
+              element={
+                <div key={location.pathname} className="animate-slideIn">
+                  <ManageCategoriesScreen
+                    incomeCategories={incCats}
+                    expenseCategories={expCats}
+                    onAddIncome={handleAddIncomeCat}
+                    onDeleteIncome={handleDelIncomeCat}
+                    onRenameIncome={handleRenameIncomeCat}
+                    onAddExpense={handleAddExpenseCat}
+                    onDeleteExpense={handleDelExpenseCat}
+                    onRenameExpense={handleRenameExpenseCat}
+                    DEFAULT_INCOME={['Salary','Freelance','Interest','Bonus','Other']}
+                    DEFAULT_EXPENSE={['Food','Groceries','Transport','Shopping','Entertainment','Health','Utilities','Rent','Education','Travel','Subscriptions','Other']}
+                  />
+                </div>
+              }
+            />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
         </main>
       </div>
 
       {/* Floating Bottom Nav for Mobile */}
-      <BottomNav
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onOpenAddWithType={openAdd}
-      />
+      <BottomNav onOpenAddWithType={openAdd} />
 
       {/* Global Command Palette */}
       <CommandPalette
         isOpen={showCmdPalette}
         onClose={() => setShowCmdPalette(false)}
-        setActiveTab={setActiveTab}
         onOpenAddWithType={openAdd}
         onToggleMask={toggleMask}
         isMasked={isMasked}

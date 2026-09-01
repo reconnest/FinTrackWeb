@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Search, LayoutDashboard, Activity, Wallet, BarChart3, User,
   Plus, ArrowDownLeft, ArrowUpRight, RefreshCw, Eye, EyeOff,
@@ -8,9 +9,10 @@ import { formatDate, formatCurrency } from '../utils/formatters';
 import { getCategoryMeta } from '../utils/categoryIcons';
 
 export const CommandPalette = ({
-  isOpen, onClose, setActiveTab, onOpenAddWithType,
+  isOpen, onClose, onOpenAddWithType,
   onToggleMask, isMasked, transactions, onInspectTx, profile
 }) => {
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
 
@@ -23,18 +25,17 @@ export const CommandPalette = ({
     }
   }, [isOpen]);
 
-  // Command items list
   const commands = useMemo(() => {
     const q = query.trim().toLowerCase();
 
     const staticItems = [
       // Navigation
-      { id: 'nav-home',     type: 'Navigation', title: 'Go to Dashboard', icon: LayoutDashboard, action: () => { setActiveTab('home'); onClose(); } },
-      { id: 'nav-activity', type: 'Navigation', title: 'Go to Activity Log', icon: Activity, action: () => { setActiveTab('activity'); onClose(); } },
-      { id: 'nav-accounts', type: 'Navigation', title: 'Go to Cards & Accounts', icon: Wallet, action: () => { setActiveTab('accounts'); onClose(); } },
-      { id: 'nav-insights', type: 'Navigation', title: 'Go to Analytics', icon: BarChart3, action: () => { setActiveTab('insights'); onClose(); } },
-      { id: 'nav-me',       type: 'Navigation', title: 'Go to Settings & Profile', icon: User, action: () => { setActiveTab('me'); onClose(); } },
-      { id: 'nav-cats',     type: 'Navigation', title: 'Manage Category Hub', icon: Tag, action: () => { setActiveTab('categories'); onClose(); } },
+      { id: 'nav-home',     type: 'Navigation', title: 'Go to Dashboard', icon: LayoutDashboard, action: () => { navigate('/dashboard'); onClose(); } },
+      { id: 'nav-activity', type: 'Navigation', title: 'Go to Activity Log', icon: Activity, action: () => { navigate('/activity'); onClose(); } },
+      { id: 'nav-accounts', type: 'Navigation', title: 'Go to Cards & Accounts', icon: Wallet, action: () => { navigate('/accounts'); onClose(); } },
+      { id: 'nav-insights', type: 'Navigation', title: 'Go to Analytics', icon: BarChart3, action: () => { navigate('/insights'); onClose(); } },
+      { id: 'nav-me',       type: 'Navigation', title: 'Go to Settings & Profile', icon: User, action: () => { navigate('/settings'); onClose(); } },
+      { id: 'nav-cats',     type: 'Navigation', title: 'Manage Category Hub', icon: Tag, action: () => { navigate('/categories'); onClose(); } },
 
       // Quick Actions
       { id: 'act-expense',  type: 'Action', title: 'Add New Expense', icon: ArrowDownLeft, action: () => { onOpenAddWithType('Expense'); onClose(); }, color: 'text-neo-coral' },
@@ -47,7 +48,6 @@ export const CommandPalette = ({
       item.title.toLowerCase().includes(q) || item.type.toLowerCase().includes(q)
     );
 
-    // Matching transactions
     let matchedTx = [];
     if (q) {
       matchedTx = transactions
@@ -69,9 +69,8 @@ export const CommandPalette = ({
     }
 
     return [...filteredStatic, ...matchedTx];
-  }, [query, isMasked, transactions, currency, setActiveTab, onOpenAddWithType, onToggleMask, onInspectTx, onClose]);
+  }, [query, isMasked, transactions, currency, navigate, onOpenAddWithType, onToggleMask, onInspectTx, onClose]);
 
-  // Keyboard navigation
   useEffect(() => {
     if (!isOpen) return;
 
@@ -101,7 +100,6 @@ export const CommandPalette = ({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 px-4 bg-black/80 backdrop-blur-md animate-fadeIn">
       <div className="bg-neo-surface border border-neo-border rounded-3xl max-w-xl w-full shadow-neo-card overflow-hidden animate-popIn">
-        {/* Search input header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-neo-border">
           <Command className="w-5 h-5 text-neo-cyan" />
           <input
@@ -117,7 +115,6 @@ export const CommandPalette = ({
           </button>
         </div>
 
-        {/* Results List */}
         <div className="max-h-80 overflow-y-auto p-2 divide-y divide-neo-border/30">
           {commands.length === 0 ? (
             <div className="py-10 text-center text-xs text-neo-muted">
@@ -167,7 +164,6 @@ export const CommandPalette = ({
           )}
         </div>
 
-        {/* Footer info */}
         <div className="flex items-center justify-between px-4 py-2.5 bg-neo-bg border-t border-neo-border text-[10px] text-neo-muted">
           <div className="flex items-center gap-2">
             <span>Navigate: <kbd className="px-1 py-0.5 bg-neo-card border border-neo-border rounded">↑</kbd> <kbd className="px-1 py-0.5 bg-neo-card border border-neo-border rounded">↓</kbd></span>

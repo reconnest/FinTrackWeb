@@ -7,6 +7,8 @@ import { useToast } from './Toast';
 import { useConfirm } from './ConfirmDialog';
 import { EmptyState } from './EmptyState';
 
+const GRID_LAYOUT = "grid-cols-[36px_1fr_auto] sm:grid-cols-[36px_minmax(180px,1.5fr)_140px_100px_110px_140px]";
+
 // Swipeable Transaction Row Component
 function SwipeableTxRow({ tx, meta, isInc, isTrf, isSel, fmt, onSelect, onInspect, onCopy, onEdit, onDelete }) {
   const [touchStart, setTouchStart] = useState(null);
@@ -20,7 +22,6 @@ function SwipeableTxRow({ tx, meta, isInc, isTrf, isSel, fmt, onSelect, onInspec
     if (!touchStart) return;
     const currentTouch = e.targetTouches[0].clientX;
     const diff = currentTouch - touchStart;
-    // Limit swipe offset to -80 (delete) to +80 (copy)
     if (diff > -100 && diff < 100) {
       setTouchOffset(diff);
     }
@@ -42,10 +43,11 @@ function SwipeableTxRow({ tx, meta, isInc, isTrf, isSel, fmt, onSelect, onInspec
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       style={{ transform: `translateX(${touchOffset}px)` }}
-      className={`grid grid-cols-[auto_1fr_auto_auto] sm:grid-cols-[auto_1fr_1fr_auto_auto_auto] items-center gap-3 px-5 py-3.5 hover:bg-neo-surface/70 transition-transform group cursor-pointer ${
+      className={`grid ${GRID_LAYOUT} items-center gap-3 px-5 py-3.5 hover:bg-neo-surface/70 transition-transform group cursor-pointer ${
         isSel ? 'bg-neo-surface border-l-2 border-neo-neonGreen' : ''
       }`}
     >
+      {/* 1. Checkbox */}
       <input
         type="checkbox"
         checked={isSel}
@@ -54,22 +56,25 @@ function SwipeableTxRow({ tx, meta, isInc, isTrf, isSel, fmt, onSelect, onInspec
         className="w-3.5 h-3.5 accent-neo-emerald rounded cursor-pointer"
       />
 
+      {/* 2. Description */}
       <div className="flex items-center gap-3 min-w-0" onClick={() => onInspect(tx)}>
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base border ${meta.bg} ${meta.border}`}>
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base border flex-shrink-0 ${meta.bg} ${meta.border}`}>
           {meta.emoji}
         </div>
         <div className="min-w-0">
           <div className="text-xs font-bold text-white truncate max-w-[140px] sm:max-w-none">{tx.note || tx.category}</div>
-          <div className="text-[10px] text-neo-muted">{tx.category} · {formatDate(tx.date)}</div>
+          <div className="text-[10px] text-neo-muted truncate">{tx.category} · {formatDate(tx.date)}</div>
         </div>
       </div>
 
+      {/* 3. Account */}
       <div className="hidden sm:block text-xs text-neo-muted truncate font-medium" onClick={() => onInspect(tx)}>
         {tx.account}{tx.toAccount ? ' → ' + tx.toAccount : ''}
       </div>
 
+      {/* 4. Type */}
       <div className="hidden sm:flex justify-center" onClick={() => onInspect(tx)}>
-        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
           isInc ? 'bg-neo-neonGreen/10 border-neo-neonGreen/30 text-neo-neonGreen' :
           isTrf ? 'bg-neo-cyan/10 border-neo-cyan/30 text-neo-cyan' :
           'bg-neo-crimson/10 border-neo-crimson/30 text-neo-coral'
@@ -78,6 +83,7 @@ function SwipeableTxRow({ tx, meta, isInc, isTrf, isSel, fmt, onSelect, onInspec
         </span>
       </div>
 
+      {/* 5. Amount */}
       <div
         onClick={() => onInspect(tx)}
         className={`text-right font-mono font-bold text-xs ${
@@ -87,7 +93,8 @@ function SwipeableTxRow({ tx, meta, isInc, isTrf, isSel, fmt, onSelect, onInspec
         {isInc ? '+' : isTrf ? '' : '-'}{fmt(tx.amount)}
       </div>
 
-      <div className="flex items-center justify-end gap-1 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+      {/* 6. Actions */}
+      <div className="hidden sm:flex items-center justify-end gap-1 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
         <button onClick={() => onInspect(tx)} title="Inspect Details" className="p-1.5 text-neo-muted hover:text-white bg-neo-surface hover:bg-neo-border rounded-lg transition-all">
           <Eye className="w-3.5 h-3.5" />
         </button>
@@ -248,13 +255,14 @@ export const ActivityScreen = ({
 
       {/* Transactions List */}
       <div className="bg-neo-card border border-neo-border rounded-3xl overflow-hidden shadow-neo-card">
-        <div className="grid grid-cols-[auto_1fr_auto_auto] sm:grid-cols-[auto_1fr_1fr_auto_auto_auto] items-center gap-3 px-5 py-3 border-b border-neo-border bg-neo-surface text-[10px] font-extrabold text-neo-muted uppercase tracking-wider">
+        {/* Table Header with explicit synced grid dimensions */}
+        <div className={`grid ${GRID_LAYOUT} items-center gap-3 px-5 py-3 border-b border-neo-border bg-neo-surface text-[10px] font-extrabold text-neo-muted uppercase tracking-wider`}>
           <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleAll} className="w-3.5 h-3.5 accent-neo-emerald rounded cursor-pointer" />
           <span>Description</span>
           <span className="hidden sm:block">Account</span>
           <span className="hidden sm:block text-center">Type</span>
           <span className="text-right">Amount</span>
-          <span className="text-right">Actions</span>
+          <span className="hidden sm:block text-right">Actions</span>
         </div>
 
         {filtered.length === 0 ? (

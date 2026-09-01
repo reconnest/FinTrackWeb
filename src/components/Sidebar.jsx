@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard, Activity, Wallet, BarChart3, User,
-  Plus, ChevronLeft, ChevronRight, Sparkles, Cloud, Command, Moon
+  Plus, ChevronLeft, ChevronRight, Cloud
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -13,8 +13,8 @@ const NAV_ITEMS = [
 ];
 
 export const Sidebar = ({
-  activeTab, setActiveTab, onOpenAddModal, onOpenCmdPalette,
-  collapsed, setCollapsed, profile, netWorth, formatCurrency, isMasked
+  activeTab, setActiveTab, onOpenAddModal,
+  collapsed, setCollapsed, profile
 }) => {
   const initials = profile?.name
     ? profile.name.trim().split(/\s+/).map(w => w[0].toUpperCase()).slice(0, 2).join('')
@@ -60,25 +60,6 @@ export const Sidebar = ({
           </button>
         </div>
 
-        {/* Quick Search / Command Palette Button */}
-        <button
-          onClick={onOpenCmdPalette}
-          className={`w-full flex items-center gap-2.5 bg-neo-bg border border-neo-border hover:border-neo-borderLight rounded-2xl py-2 text-xs text-neo-muted hover:text-white transition-all shadow-sm ${
-            collapsed ? 'justify-center px-2' : 'px-3 justify-between'
-          }`}
-          title="Command Palette (Ctrl + K)"
-        >
-          <div className="flex items-center gap-2">
-            <Command className="w-3.5 h-3.5 text-neo-cyan" />
-            {!collapsed && <span>Search & Actions</span>}
-          </div>
-          {!collapsed && (
-            <kbd className="px-1.5 py-0.5 text-[9px] font-mono bg-neo-card border border-neo-border rounded text-neo-muted">
-              ⌘K
-            </kbd>
-          )}
-        </button>
-
         {/* + New Entry Primary Action Button */}
         <button
           onClick={() => onOpenAddModal()}
@@ -118,14 +99,8 @@ export const Sidebar = ({
       {/* Bottom User & Cloud Sync Info */}
       <div className="space-y-3 pt-4 border-t border-neo-border/60">
         {!collapsed && (
-          <div className="bg-neo-card border border-neo-border rounded-2xl p-3 space-y-1">
-            <span className="text-[9px] uppercase font-bold text-neo-muted tracking-wider">Net Position</span>
-            <div className="text-sm font-black font-mono text-white">
-              {formatCurrency(netWorth, 'INR', isMasked)}
-            </div>
-            <div className="flex items-center gap-1.5 text-[10px] text-neo-neonGreen font-semibold pt-1">
-              <Cloud className="w-3 h-3" /> <span>Synced to Turso</span>
-            </div>
+          <div className="flex items-center gap-1.5 text-[10px] text-neo-neonGreen font-semibold px-2">
+            <Cloud className="w-3.5 h-3.5" /> <span>Turso Cloud Synced</span>
           </div>
         )}
 

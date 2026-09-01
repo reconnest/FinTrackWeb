@@ -15,14 +15,36 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { credential } = req.body;
-  if (!credential) return res.status(400).json({ error: 'Missing credential' });
+  const { credential, access_token } = req.body || {};
+  if (!credential && !access_token) {
+    return res.status(400).json({ error: 'Missing credential or access_token' });
+  }
 
   try {
-    // 1. Verify Google ID token
-    const client = new OAuth2Client(CLIENT_ID);
-    const ticket = await client.verifyIdToken({ idToken: credential, audience: CLIENT_ID });
-    const { sub: userId, name, email } = ticket.getPayload();
+    let userId, name, email;
+
+    // 1. Verify either ID token (credential) or Access Token (Google UserInfo)
+    if (credential) {
+      const client = new OAuth2Client(CLIENT_ID);
+      const ticket = await client.verifyIdToken({ idToken: credential, audience: CLIENT_ID });
+      const payload = ticket.getPayload();
+      userId = payload.sub;
+      name = payload.name;
+      email = payload.email;
+    } else if (access_token) {
+      const gRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${access_token}` }
+      });
+      if (!gRes.ok) throw new Error('Failed to verify access token with Google');
+      const payload = await gRes.json();
+      userId = payload.sub;
+      name = payload.name;
+      email = payload.email;
+    }
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Invalid Google authentication' });
+    }
 
     // 2. Init schema + get/create user
     await initSchema();
@@ -32,7 +54,7 @@ export default async function handler(req, res) {
     const isNewUser = existing.rows.length === 0;
 
     if (isNewUser) {
-      await db.execute({ sql: 'INSERT INTO users (id, name, email) VALUES (?, ?, ?)', args: [userId, name, email] });
+      await db.execute({ sql: 'INSERT INTO users (id, name, email) VALUES (?, ?, ?)', args: [userId, name || 'User', email || ''] });
       // Seed default accounts
       for (const [n, t] of [['Bank','BANK'],['Cash','CASH_WALLET']]) {
         await db.execute({ sql: 'INSERT OR IGNORE INTO accounts (user_id, name, type) VALUES (?,?,?)', args: [userId, n, t] });
@@ -45,7 +67,7 @@ export default async function handler(req, res) {
     const userRow = (await db.execute({ sql: 'SELECT * FROM users WHERE id = ?', args: [userId] })).rows[0];
 
     // 3. Issue JWT
-    const token = await new SignJWT({ userId, email, name })
+    const token = await new SignJWT({ userId, email: userRow.email, name: userRow.name })
       .setProtectedHeader({ alg: 'HS256' })
       .setExpirationTime('30d')
       .sign(getSecret());

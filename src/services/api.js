@@ -28,7 +28,7 @@ async function request(method, path, body) {
 
 export const api = {
   // Auth
-  signIn: (credential) => request('POST', '/auth', { credential }),
+  signIn: (authData) => request('POST', '/auth', typeof authData === 'string' ? { credential: authData } : authData),
 
   // Profile
   getUser:    ()     => request('GET',  '/user'),

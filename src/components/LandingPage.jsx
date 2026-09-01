@@ -25,10 +25,15 @@ export const LandingPage = ({ onSuccess }) => {
     }
   };
 
+  const scrollToLogin = () => {
+    const el = document.getElementById('hero-google-login');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   return (
     <div className="min-h-screen bg-neo-bg text-neo-text flex flex-col selection:bg-neo-neonGreen selection:text-black">
       {/* Top Sticky Header */}
-      <header className="sticky top-0 z-40 bg-neo-bg/85 backdrop-blur-xl border-b border-neo-border">
+      <header className="sticky top-0 z-40 bg-neo-bg/90 backdrop-blur-xl border-b border-neo-border">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-neo-emerald to-neo-cyan p-[1px] shadow-neo-glow-green">
@@ -44,7 +49,7 @@ export const LandingPage = ({ onSuccess }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <a
               href="#features"
               className="hidden sm:inline-block text-xs font-semibold text-neo-muted hover:text-white transition-colors"
@@ -57,16 +62,12 @@ export const LandingPage = ({ onSuccess }) => {
             >
               Security
             </a>
-            <div className="pl-2">
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={() => toast.error('Sign-in failed')}
-                theme="filled_black"
-                shape="pill"
-                size="medium"
-                text="signin"
-              />
-            </div>
+            <button
+              onClick={scrollToLogin}
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-neo-surface border border-neo-border hover:border-neo-neonGreen/50 text-white hover:text-neo-neonGreen transition-all shadow-sm active:scale-95"
+            >
+              Sign In
+            </button>
           </div>
         </div>
       </header>
@@ -91,23 +92,25 @@ export const LandingPage = ({ onSuccess }) => {
           </p>
 
           {/* Call to Action Google Button */}
-          <div className="pt-4 flex flex-col items-center gap-3">
+          <div id="hero-google-login" className="pt-4 flex flex-col items-center gap-3">
             {loading ? (
-              <div className="flex items-center gap-2 text-neo-neonGreen text-sm font-semibold py-2">
+              <div className="flex items-center gap-2 text-neo-neonGreen text-sm font-semibold py-3">
                 <div className="w-5 h-5 border-2 border-neo-neonGreen border-t-transparent rounded-full animate-spin" />
                 <span>Signing you in securely...</span>
               </div>
             ) : (
-              <div className="scale-110 shadow-neo-glow-green rounded-full">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => toast.error('Sign-in failed')}
-                  theme="filled_black"
-                  shape="pill"
-                  size="large"
-                  text="continue_with"
-                  width="300"
-                />
+              <div className="rounded-full overflow-hidden p-[2px] bg-gradient-to-r from-neo-emerald/40 to-neo-cyan/40 shadow-neo-glow-green">
+                <div className="rounded-full overflow-hidden bg-black flex items-center justify-center">
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => toast.error('Sign-in failed')}
+                    theme="filled_black"
+                    shape="pill"
+                    size="large"
+                    text="continue_with"
+                    width="300"
+                  />
+                </div>
               </div>
             )}
             <span className="text-[11px] text-neo-muted/70 flex items-center gap-1.5 pt-1">
@@ -240,14 +243,17 @@ export const LandingPage = ({ onSuccess }) => {
             </p>
           </div>
           <div className="flex justify-center">
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={() => toast.error('Sign-in failed')}
-              theme="filled_black"
-              shape="pill"
-              size="large"
-              text="continue_with"
-            />
+            <div className="rounded-full overflow-hidden bg-black inline-flex items-center justify-center shadow-lg">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => toast.error('Sign-in failed')}
+                theme="filled_black"
+                shape="pill"
+                size="large"
+                text="continue_with"
+                width="280"
+              />
+            </div>
           </div>
         </div>
       </main>

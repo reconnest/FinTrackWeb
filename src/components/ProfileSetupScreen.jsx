@@ -10,8 +10,8 @@ const CURRENCIES = [
   { code: 'SGD', label: 'Singapore Dollar (S$)', country: 'SG' },
 ];
 
-export const ProfileSetupScreen = ({ onComplete }) => {
-  const [name, setName] = useState('');
+export const ProfileSetupScreen = ({ onComplete, defaultName = '' }) => {
+  const [name, setName] = useState(defaultName);
   const [currencyCode, setCurrencyCode] = useState('INR');
   const [err, setErr] = useState('');
 

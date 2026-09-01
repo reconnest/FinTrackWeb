@@ -1,5 +1,8 @@
 import React from 'react';
-import { LayoutDashboard, Activity, Wallet, BarChart3, User, Plus, Eye, EyeOff, Sparkles } from 'lucide-react';
+import {
+  LayoutDashboard, Activity, Wallet, BarChart3, User,
+  Plus, Eye, EyeOff, Command, Moon, Sun
+} from 'lucide-react';
 
 const TABS = [
   { id: 'home',     label: 'Dashboard', Icon: LayoutDashboard },
@@ -10,8 +13,8 @@ const TABS = [
 ];
 
 export const Navbar = ({
-  activeTab, setActiveTab, onOpenAddModal, profileName,
-  formatCurrency, netWorth, isMasked, onToggleMask
+  activeTab, setActiveTab, onOpenAddModal, onOpenCmdPalette, profileName,
+  formatCurrency, netWorth, isMasked, onToggleMask, themeMode, onToggleTheme
 }) => {
   const initials = profileName
     ? profileName.trim().split(/\s+/).map(w => w[0].toUpperCase()).slice(0, 2).join('')
@@ -21,7 +24,7 @@ export const Navbar = ({
     <header className="sticky top-0 z-40 bg-neo-bg/90 backdrop-blur-xl border-b border-neo-border">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
-          {/* Logo & Brand */}
+          {/* Logo & Brand (Mobile & Desktop) */}
           <div className="flex items-center gap-3">
             <div className="relative group cursor-pointer" onClick={() => setActiveTab('home')}>
               <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-neo-emerald to-neo-cyan p-[1px] shadow-neo-glow-green transition-transform active:scale-95">
@@ -39,14 +42,26 @@ export const Navbar = ({
                   PRO
                 </span>
               </div>
-              <span className="text-[10px] text-neo-muted hidden sm:inline-block">Cloud Synced · Neo Dashboard</span>
+              <span className="text-[10px] text-neo-muted hidden sm:inline-block">Cloud Synced</span>
             </div>
           </div>
+
+          {/* Quick Search Button (Cmd+K) */}
+          <button
+            onClick={onOpenCmdPalette}
+            className="hidden sm:flex items-center gap-2 bg-neo-surface border border-neo-border hover:border-neo-borderLight px-3 py-1.5 rounded-xl text-xs text-neo-muted hover:text-white transition-all shadow-sm"
+          >
+            <Command className="w-3.5 h-3.5 text-neo-cyan" />
+            <span>Search commands</span>
+            <kbd className="px-1.5 py-0.5 text-[9px] font-mono bg-neo-card border border-neo-border rounded text-neo-muted ml-2">
+              ⌘K
+            </kbd>
+          </button>
 
           {/* Center Net Worth Pill with Privacy Toggle */}
           <div className="flex items-center gap-2 bg-neo-surface border border-neo-border px-3.5 py-1.5 rounded-2xl shadow-inner">
             <div className="flex flex-col text-right sm:text-left">
-              <span className="text-[10px] font-semibold text-neo-muted uppercase tracking-wider flex items-center gap-1">
+              <span className="text-[10px] font-semibold text-neo-muted uppercase tracking-wider">
                 Net Worth
               </span>
               <span className="text-xs sm:text-sm font-black font-mono text-white tracking-tight">
@@ -62,8 +77,17 @@ export const Navbar = ({
             </button>
           </div>
 
-          {/* Right Actions (Desktop Add + Profile Avatar) */}
-          <div className="flex items-center gap-3">
+          {/* Right Actions */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* OLED Mode Quick Switch */}
+            <button
+              onClick={onToggleTheme}
+              className="p-2 text-neo-muted hover:text-white bg-neo-surface border border-neo-border rounded-xl transition-all"
+              title={themeMode === 'oled' ? 'Switch to Midnight Theme' : 'Switch to Pure OLED Black'}
+            >
+              {themeMode === 'oled' ? <Sun className="w-4 h-4 text-neo-gold" /> : <Moon className="w-4 h-4 text-neo-purple" />}
+            </button>
+
             <button
               onClick={() => onOpenAddModal()}
               className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-gradient-to-r from-neo-emerald to-neo-neonGreen hover:from-neo-neonGreen hover:to-neo-emerald text-black rounded-xl shadow-neo-glow-green transition-all active:scale-95"
@@ -87,8 +111,8 @@ export const Navbar = ({
           </div>
         </div>
 
-        {/* Desktop Capsule Navigation Bar */}
-        <nav className="hidden sm:flex items-center gap-1.5 pb-2.5 pt-0.5 border-t border-neo-border/50">
+        {/* Desktop Capsule Navigation Bar (Hidden when Left Sidebar is present on lg:) */}
+        <nav className="hidden sm:flex lg:hidden items-center gap-1.5 pb-2.5 pt-0.5 border-t border-neo-border/50">
           {TABS.map(({ id, label, Icon }) => {
             const active = activeTab === id;
             return (

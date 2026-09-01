@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, ArrowDownLeft, ArrowUpRight, RefreshCw, Calendar, Tag, Wallet } from 'lucide-react';
+import { X, ArrowDownLeft, ArrowUpRight, RefreshCw, Calendar, Tag, Wallet, Calculator, Keyboard } from 'lucide-react';
 import { getCategoryMeta } from '../utils/categoryIcons';
+import { CalculatorInput } from './CalculatorInput';
 
 export const AddTransactionModal = ({
   isOpen, onClose, onSave, accounts, incomeCategories,
@@ -13,11 +14,13 @@ export const AddTransactionModal = ({
   const [toAccount, setToAccount] = useState('');
   const [date, setDate]           = useState('');
   const [note, setNote]           = useState('');
+  const [showKeypad, setShowKeypad] = useState(false);
   const [err, setErr]             = useState('');
 
   useEffect(() => {
     if (isOpen) {
       setErr('');
+      setShowKeypad(false);
       if (editTx) {
         setType(editTx.type);
         setAmount(String(editTx.amount));
@@ -40,7 +43,6 @@ export const AddTransactionModal = ({
     }
   }, [isOpen, editTx, initialType, accounts, incomeCategories, expenseCategories]);
 
-  // When type changes, auto select first category of that type
   const handleTypeChange = (newType) => {
     setType(newType);
     const cats = newType === 'Income' ? incomeCategories : expenseCategories;
@@ -55,7 +57,20 @@ export const AddTransactionModal = ({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const num = parseFloat(amount);
+
+    // Evaluate in case an arithmetic expression is left
+    let finalAmount = amount;
+    try {
+      const safeExpr = String(amount).replace(/×/g, '*').replace(/÷/g, '/');
+      const evaluated = Function(`'use strict'; return (${safeExpr})`)();
+      if (!isNaN(evaluated) && isFinite(evaluated) && evaluated > 0) {
+        finalAmount = evaluated;
+      }
+    } catch {
+      // Keep as parsed float
+    }
+
+    const num = parseFloat(finalAmount);
     if (!num || num <= 0) { setErr('Please enter a valid positive amount.'); return; }
     if (!account) { setErr('Please select an account.'); return; }
     if (type === 'Transfer' && (!toAccount || toAccount === account)) {
@@ -66,7 +81,7 @@ export const AddTransactionModal = ({
 
     onSave({
       id: editTx?.id || Date.now(),
-      amount: num,
+      amount: Math.round(num * 100) / 100,
       type,
       category: type === 'Transfer' ? 'Transfer' : (category || 'Other'),
       account,
@@ -82,7 +97,7 @@ export const AddTransactionModal = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <div className="bg-neo-surface border border-neo-border rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-neo-card animate-popIn">
+      <div className="bg-neo-surface border border-neo-border rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-neo-card animate-popIn max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -128,19 +143,42 @@ export const AddTransactionModal = ({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-          {/* Large Amount Input */}
-          <div className="bg-neo-bg border border-neo-border rounded-2xl p-3 text-center space-y-1">
-            <span className="text-[10px] uppercase font-bold text-neo-muted tracking-wider">Amount (₹)</span>
+          {/* Amount Box with Calculator Toggle */}
+          <div className="bg-neo-bg border border-neo-border rounded-2xl p-3 text-center space-y-2">
+            <div className="flex items-center justify-between px-2">
+              <span className="text-[10px] uppercase font-bold text-neo-muted tracking-wider">Amount (₹)</span>
+              <button
+                type="button"
+                onClick={() => setShowKeypad(!showKeypad)}
+                className="flex items-center gap-1 text-[10px] font-bold text-neo-cyan bg-neo-surface px-2 py-0.5 rounded-lg border border-neo-border hover:border-neo-cyan/40 transition-all"
+              >
+                {showKeypad ? <Keyboard className="w-3 h-3" /> : <Calculator className="w-3 h-3" />}
+                <span>{showKeypad ? 'Manual Input' : 'Math Keypad'}</span>
+              </button>
+            </div>
+
             <div className="flex items-center justify-center gap-1">
               <span className="text-xl font-mono text-neo-muted font-bold">₹</span>
               <input
-                type="number" step="any" min="0" required autoFocus
+                type="text"
+                autoFocus
                 placeholder="0.00"
                 value={amount}
                 onChange={e => { setAmount(e.target.value); setErr(''); }}
-                className="w-48 bg-transparent text-center text-3xl font-black font-mono text-white focus:outline-none placeholder-neo-border"
+                className="w-full bg-transparent text-center text-3xl font-black font-mono text-white focus:outline-none placeholder-neo-border"
               />
             </div>
+
+            {/* Embedded Math Keypad */}
+            {showKeypad && (
+              <div className="pt-2 animate-fadeIn">
+                <CalculatorInput
+                  expression={amount}
+                  setExpression={setAmount}
+                  onConfirm={() => setShowKeypad(false)}
+                />
+              </div>
+            )}
           </div>
 
           {/* Category Chip Selector (for Expense & Income) */}

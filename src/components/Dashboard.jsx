@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import {
   ChevronLeft, ChevronRight, TrendingUp, TrendingDown, ArrowUpRight,
-  ArrowDownLeft, Sparkles, Wallet, CreditCard, ChevronRight as ChevronRightIcon
+  ArrowDownLeft, Sparkles, Wallet, CreditCard, ChevronRight as ChevronRightIcon,
+  Eye
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer
@@ -53,7 +54,7 @@ function spendingSuggestionCandidates(monthExpense, catPatterns, historicalCats,
   return candidates;
 }
 
-export const Dashboard = ({ accounts, transactions, profile, setActiveTab, isMasked }) => {
+export const Dashboard = ({ accounts, transactions, profile, setActiveTab, onInspectTx, isMasked }) => {
   const [monthOffset, setMonthOffset] = useState(0);
   const currency = profile?.currencyCode || 'INR';
 
@@ -318,7 +319,11 @@ export const Dashboard = ({ accounts, transactions, profile, setActiveTab, isMas
                   const isInc = tx.type === 'Income';
                   const isTrf = tx.type === 'Transfer';
                   return (
-                    <div key={tx.id} className="py-2.5 flex items-center justify-between group">
+                    <div
+                      key={tx.id}
+                      onClick={() => onInspectTx && onInspectTx(tx)}
+                      className="py-2.5 flex items-center justify-between group cursor-pointer hover:bg-neo-surface/80 px-2 rounded-xl transition-all"
+                    >
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base border ${meta.bg} ${meta.border}`}>
                           {meta.emoji}

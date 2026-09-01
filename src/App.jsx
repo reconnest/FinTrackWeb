@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Navbar }                 from './components/Navbar';
+import { Sidebar }                from './components/Sidebar';
 import { BottomNav }              from './components/BottomNav';
+import { CommandPalette }         from './components/CommandPalette';
+import { TransactionDrawer }      from './components/TransactionDrawer';
 import { SignInScreen }           from './components/SignInScreen';
 import { ProfileSetupScreen }     from './components/ProfileSetupScreen';
 import { LoadingScreen }          from './components/LoadingScreen';
@@ -33,19 +36,60 @@ function AppInner() {
   const [incCats,      setIncCats]      = useState([]);
   const [expCats,      setExpCats]      = useState([]);
 
-  // ── UI state ─────────────────────────────────────────────────────────────
-  const [activeTab,    setActiveTab]    = useState('home');
-  const [showAddModal, setShowAddModal] = useState(false);
+  // ── UI / Layout state ────────────────────────────────────────────────────
+  const [activeTab,        setActiveTab]        = useState('home');
+  const [showAddModal,     setShowAddModal]     = useState(false);
   const [initialModalType, setInitialModalType] = useState('Expense');
-  const [editTx,       setEditTx]       = useState(null);
-  const [isMasked,     setIsMasked]     = useState(() => localStorage.getItem('fintrack_masked') === 'true');
+  const [editTx,           setEditTx]           = useState(null);
+  const [inspectTx,        setInspectTx]        = useState(null);
+  const [showCmdPalette,   setShowCmdPalette]   = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('fintrack_sidebar_collapsed') === 'true');
+  const [isMasked,         setIsMasked]         = useState(() => localStorage.getItem('fintrack_masked') === 'true');
+  const [themeMode,        setThemeMode]        = useState(() => localStorage.getItem('fintrack_theme') || 'midnight');
 
+  // Toggle mask
   const toggleMask = useCallback(() => {
     setIsMasked(prev => {
       const next = !prev;
       localStorage.setItem('fintrack_masked', String(next));
       return next;
     });
+  }, []);
+
+  // Toggle OLED theme
+  const toggleTheme = useCallback(() => {
+    setThemeMode(prev => {
+      const next = prev === 'oled' ? 'midnight' : 'oled';
+      localStorage.setItem('fintrack_theme', next);
+      return next;
+    });
+  }, []);
+
+  // Sidebar collapse toggle
+  const toggleSidebar = useCallback((val) => {
+    setSidebarCollapsed(val);
+    localStorage.setItem('fintrack_sidebar_collapsed', String(val));
+  }, []);
+
+  // Apply theme class to document body
+  useEffect(() => {
+    if (themeMode === 'oled') {
+      document.body.style.backgroundColor = '#000000';
+    } else {
+      document.body.style.backgroundColor = '#0B0E14';
+    }
+  }, [themeMode]);
+
+  // Global Cmd+K keyboard shortcut listener
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowCmdPalette(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
   // ── Load all data from API ─────────────────────────────────────────────────
@@ -225,12 +269,12 @@ function AppInner() {
   const renderScreen = () => {
     switch (activeTab) {
       case 'home':
-        return <Dashboard accounts={accounts} transactions={transactions} profile={profile} setActiveTab={setActiveTab} isMasked={isMasked} />;
+        return <Dashboard accounts={accounts} transactions={transactions} profile={profile} setActiveTab={setActiveTab} onInspectTx={setInspectTx} isMasked={isMasked} />;
       case 'activity':
         return <ActivityScreen transactions={transactions} accounts={accounts}
           incomeCategories={incCats} expenseCategories={expCats} profile={profile} isMasked={isMasked}
           onDelete={handleDeleteTx} onBulkDelete={handleBulkDelete}
-          onEdit={openEdit} onCopy={handleCopyTx} />;
+          onEdit={openEdit} onCopy={handleCopyTx} onInspect={setInspectTx} />;
       case 'accounts':
         return <Accounts accounts={accounts} transactions={transactions} profile={profile} isMasked={isMasked}
           onAddAccount={handleAddAccount} onEditAccount={handleEditAccount} onDeleteAccount={handleDeleteAccount} />;
@@ -239,7 +283,8 @@ function AppInner() {
       case 'me':
         return <MeScreen profile={profile} authUser={authUser} transactions={transactions}
           accounts={accounts} incomeCategories={incCats} expenseCategories={expCats}
-          onUpdateProfile={handleUpdateProfile} onSignOut={handleSignOut} setActiveTab={setActiveTab} />;
+          onUpdateProfile={handleUpdateProfile} onSignOut={handleSignOut} setActiveTab={setActiveTab}
+          themeMode={themeMode} onToggleTheme={toggleTheme} />;
       case 'categories':
         return <ManageCategoriesScreen
           incomeCategories={incCats} expenseCategories={expCats}
@@ -252,16 +297,41 @@ function AppInner() {
   };
 
   return (
-    <div className="min-h-screen bg-neo-bg text-neo-text">
-      <Navbar
-        activeTab={activeTab} setActiveTab={setActiveTab}
-        onOpenAddModal={openAdd} profileName={profile?.name}
-        formatCurrency={fmtCur} netWorth={nw}
-        isMasked={isMasked} onToggleMask={toggleMask}
+    <div className={`min-h-screen text-neo-text flex ${themeMode === 'oled' ? 'bg-black' : 'bg-neo-bg'}`}>
+      {/* Collapsible Left Sidebar for Desktop */}
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onOpenAddModal={openAdd}
+        onOpenCmdPalette={() => setShowCmdPalette(true)}
+        collapsed={sidebarCollapsed}
+        setCollapsed={toggleSidebar}
+        profile={profile}
+        netWorth={nw}
+        formatCurrency={fmtCur}
+        isMasked={isMasked}
       />
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 pb-32 sm:pb-12">
-        <div key={activeTab} className="animate-slideIn">{renderScreen()}</div>
-      </main>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <Navbar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onOpenAddModal={openAdd}
+          onOpenCmdPalette={() => setShowCmdPalette(true)}
+          profileName={profile?.name}
+          formatCurrency={fmtCur}
+          netWorth={nw}
+          isMasked={isMasked}
+          onToggleMask={toggleMask}
+          themeMode={themeMode}
+          onToggleTheme={toggleTheme}
+        />
+
+        <main className="max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 pb-32 sm:pb-12 flex-1">
+          <div key={activeTab} className="animate-slideIn">{renderScreen()}</div>
+        </main>
+      </div>
 
       {/* Floating Bottom Nav for Mobile */}
       <BottomNav
@@ -270,6 +340,33 @@ function AppInner() {
         onOpenAddWithType={openAdd}
       />
 
+      {/* Global Command Palette */}
+      <CommandPalette
+        isOpen={showCmdPalette}
+        onClose={() => setShowCmdPalette(false)}
+        setActiveTab={setActiveTab}
+        onOpenAddWithType={openAdd}
+        onToggleMask={toggleMask}
+        isMasked={isMasked}
+        transactions={transactions}
+        onInspectTx={setInspectTx}
+        profile={profile}
+      />
+
+      {/* Slide-over Transaction Inspector Drawer */}
+      <TransactionDrawer
+        isOpen={!!inspectTx}
+        onClose={() => setInspectTx(null)}
+        tx={inspectTx}
+        onEdit={openEdit}
+        onCopy={handleCopyTx}
+        onDelete={handleDeleteTx}
+        transactions={transactions}
+        profile={profile}
+        isMasked={isMasked}
+      />
+
+      {/* Add / Edit Transaction Modal */}
       <AddTransactionModal
         isOpen={showAddModal}
         onClose={closeModal}

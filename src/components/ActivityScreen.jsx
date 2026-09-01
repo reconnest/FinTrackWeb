@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, FileDown, Trash2, Copy, Edit2, X, Calendar, Filter } from 'lucide-react';
+import { Search, FileDown, Trash2, Copy, Edit2, X, Calendar, Filter, Eye } from 'lucide-react';
 import { formatDate, formatCurrency } from '../utils/formatters';
 import { getCategoryMeta } from '../utils/categoryIcons';
 import { exportCSV } from '../utils/backup';
@@ -7,9 +7,111 @@ import { useToast } from './Toast';
 import { useConfirm } from './ConfirmDialog';
 import { EmptyState } from './EmptyState';
 
+// Swipeable Transaction Row Component
+function SwipeableTxRow({ tx, meta, isInc, isTrf, isSel, fmt, onSelect, onInspect, onCopy, onEdit, onDelete }) {
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchOffset, setTouchOffset] = useState(0);
+
+  const handleTouchStart = (e) => {
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!touchStart) return;
+    const currentTouch = e.targetTouches[0].clientX;
+    const diff = currentTouch - touchStart;
+    // Limit swipe offset to -80 (delete) to +80 (copy)
+    if (diff > -100 && diff < 100) {
+      setTouchOffset(diff);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (touchOffset < -50) {
+      onDelete(tx.id);
+    } else if (touchOffset > 50) {
+      onCopy(tx);
+    }
+    setTouchOffset(0);
+    setTouchStart(null);
+  };
+
+  return (
+    <div
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      style={{ transform: `translateX(${touchOffset}px)` }}
+      className={`grid grid-cols-[auto_1fr_auto_auto] sm:grid-cols-[auto_1fr_1fr_auto_auto_auto] items-center gap-3 px-5 py-3.5 hover:bg-neo-surface/70 transition-transform group cursor-pointer ${
+        isSel ? 'bg-neo-surface border-l-2 border-neo-neonGreen' : ''
+      }`}
+    >
+      <input
+        type="checkbox"
+        checked={isSel}
+        onClick={(e) => e.stopPropagation()}
+        onChange={() => onSelect(tx.id)}
+        className="w-3.5 h-3.5 accent-neo-emerald rounded cursor-pointer"
+      />
+
+      <div className="flex items-center gap-3 min-w-0" onClick={() => onInspect(tx)}>
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base border ${meta.bg} ${meta.border}`}>
+          {meta.emoji}
+        </div>
+        <div className="min-w-0">
+          <div className="text-xs font-bold text-white truncate max-w-[140px] sm:max-w-none">{tx.note || tx.category}</div>
+          <div className="text-[10px] text-neo-muted">{tx.category} · {formatDate(tx.date)}</div>
+        </div>
+      </div>
+
+      <div className="hidden sm:block text-xs text-neo-muted truncate font-medium" onClick={() => onInspect(tx)}>
+        {tx.account}{tx.toAccount ? ' → ' + tx.toAccount : ''}
+      </div>
+
+      <div className="hidden sm:flex justify-center" onClick={() => onInspect(tx)}>
+        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+          isInc ? 'bg-neo-neonGreen/10 border-neo-neonGreen/30 text-neo-neonGreen' :
+          isTrf ? 'bg-neo-cyan/10 border-neo-cyan/30 text-neo-cyan' :
+          'bg-neo-crimson/10 border-neo-crimson/30 text-neo-coral'
+        }`}>
+          {tx.type}
+        </span>
+      </div>
+
+      <div
+        onClick={() => onInspect(tx)}
+        className={`text-right font-mono font-bold text-xs ${
+          isInc ? 'text-neo-neonGreen' : isTrf ? 'text-neo-cyan' : 'text-neo-text'
+        }`}
+      >
+        {isInc ? '+' : isTrf ? '' : '-'}{fmt(tx.amount)}
+      </div>
+
+      <div className="flex items-center justify-end gap-1 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+        <button onClick={() => onInspect(tx)} title="Inspect Details" className="p-1.5 text-neo-muted hover:text-white bg-neo-surface hover:bg-neo-border rounded-lg transition-all">
+          <Eye className="w-3.5 h-3.5" />
+        </button>
+        <button onClick={() => onCopy(tx)} title="Duplicate" className="p-1.5 text-neo-muted hover:text-white bg-neo-surface hover:bg-neo-border rounded-lg transition-all">
+          <Copy className="w-3.5 h-3.5" />
+        </button>
+        <button onClick={() => onEdit(tx)} title="Edit" className="p-1.5 text-neo-muted hover:text-neo-neonGreen bg-neo-surface hover:bg-neo-neonGreen/15 rounded-lg transition-all">
+          <Edit2 className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={() => onDelete(tx.id)}
+          title="Delete"
+          className="p-1.5 text-neo-muted hover:text-neo-coral bg-neo-surface hover:bg-neo-crimson/20 rounded-lg transition-all"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export const ActivityScreen = ({
   transactions, accounts, incomeCategories, expenseCategories,
-  onDelete, onBulkDelete, onEdit, onCopy, profile, isMasked
+  onDelete, onBulkDelete, onEdit, onCopy, onInspect, profile, isMasked
 }) => {
   const [search, setSearch]         = useState('');
   const [filterType, setFilterType] = useState('ALL');
@@ -60,6 +162,13 @@ export const ActivityScreen = ({
     if (!selected.size) return;
     const ok = await confirm(`Permanently delete ${selected.size} transaction(s)?`, { title: 'Bulk Delete' });
     if (ok) { onBulkDelete([...selected]); setSelected(new Set()); toast.success(`Deleted ${selected.size} records`); }
+  };
+
+  const handleDeleteSingle = async (id) => {
+    if (await confirm('Permanently delete this transaction?', { title: 'Delete Entry' })) {
+      onDelete(id);
+      toast.success('Transaction deleted');
+    }
   };
 
   return (
@@ -131,6 +240,9 @@ export const ActivityScreen = ({
               <X className="w-3 h-3" /> Reset Filters
             </button>
           )}
+          <span className="text-[10px] text-neo-muted ml-auto hidden sm:inline-block">
+            Tip: Click any row to inspect details · Mobile: Swipe 👈 Delete / 👉 Copy
+          </span>
         </div>
       </div>
 
@@ -156,65 +268,20 @@ export const ActivityScreen = ({
               const isSel = selected.has(tx.id);
 
               return (
-                <div
+                <SwipeableTxRow
                   key={tx.id}
-                  className={`grid grid-cols-[auto_1fr_auto_auto] sm:grid-cols-[auto_1fr_1fr_auto_auto_auto] items-center gap-3 px-5 py-3.5 hover:bg-neo-surface/70 transition-all group ${
-                    isSel ? 'bg-neo-surface border-l-2 border-neo-neonGreen' : ''
-                  }`}
-                >
-                  <input type="checkbox" checked={isSel} onChange={() => toggleSelect(tx.id)} className="w-3.5 h-3.5 accent-neo-emerald rounded cursor-pointer" />
-
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-base border ${meta.bg} ${meta.border}`}>
-                      {meta.emoji}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-bold text-white truncate max-w-[140px] sm:max-w-none">{tx.note || tx.category}</div>
-                      <div className="text-[10px] text-neo-muted">{tx.category} · {formatDate(tx.date)}</div>
-                    </div>
-                  </div>
-
-                  <div className="hidden sm:block text-xs text-neo-muted truncate font-medium">
-                    {tx.account}{tx.toAccount ? ' → ' + tx.toAccount : ''}
-                  </div>
-
-                  <div className="hidden sm:flex justify-center">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                      isInc ? 'bg-neo-neonGreen/10 border-neo-neonGreen/30 text-neo-neonGreen' :
-                      isTrf ? 'bg-neo-cyan/10 border-neo-cyan/30 text-neo-cyan' :
-                      'bg-neo-crimson/10 border-neo-crimson/30 text-neo-coral'
-                    }`}>
-                      {tx.type}
-                    </span>
-                  </div>
-
-                  <div className={`text-right font-mono font-bold text-xs ${
-                    isInc ? 'text-neo-neonGreen' : isTrf ? 'text-neo-cyan' : 'text-neo-text'
-                  }`}>
-                    {isInc ? '+' : isTrf ? '' : '-'}{fmt(tx.amount)}
-                  </div>
-
-                  <div className="flex items-center justify-end gap-1 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => onCopy(tx)} title="Duplicate" className="p-1.5 text-neo-muted hover:text-white bg-neo-surface hover:bg-neo-border rounded-lg transition-all">
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
-                    <button onClick={() => onEdit(tx)} title="Edit" className="p-1.5 text-neo-muted hover:text-neo-neonGreen bg-neo-surface hover:bg-neo-neonGreen/15 rounded-lg transition-all">
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={async () => {
-                        if (await confirm('Permanently delete this transaction?', { title: 'Delete Entry' })) {
-                          onDelete(tx.id);
-                          toast.success('Transaction deleted');
-                        }
-                      }}
-                      title="Delete"
-                      className="p-1.5 text-neo-muted hover:text-neo-coral bg-neo-surface hover:bg-neo-crimson/20 rounded-lg transition-all"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
+                  tx={tx}
+                  meta={meta}
+                  isInc={isInc}
+                  isTrf={isTrf}
+                  isSel={isSel}
+                  fmt={fmt}
+                  onSelect={toggleSelect}
+                  onInspect={onInspect}
+                  onCopy={onCopy}
+                  onEdit={onEdit}
+                  onDelete={handleDeleteSingle}
+                />
               );
             })}
           </div>

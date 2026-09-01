@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Download, FileJson, Pencil, Check, X, LogOut, ShieldCheck, Database, Cloud } from 'lucide-react';
+import { User, Download, FileJson, Pencil, Check, X, LogOut, Cloud, Moon, Sun, Smartphone } from 'lucide-react';
 import { exportBackupJSON } from '../utils/backup';
 import { useToast } from './Toast';
 import { useConfirm } from './ConfirmDialog';
@@ -15,7 +15,7 @@ const CURRENCIES = [
 
 export const MeScreen = ({
   profile, authUser, transactions, accounts, incomeCategories, expenseCategories,
-  onUpdateProfile, onSignOut, setActiveTab
+  onUpdateProfile, onSignOut, setActiveTab, themeMode, onToggleTheme
 }) => {
   const toast   = useToast();
   const confirm = useConfirm();
@@ -52,7 +52,7 @@ export const MeScreen = ({
     <div className="space-y-6 pb-12">
       <div>
         <h1 className="text-xl font-extrabold text-white tracking-tight">Account & Settings</h1>
-        <p className="text-xs text-neo-muted">Profile and cloud storage controls</p>
+        <p className="text-xs text-neo-muted">Profile, display preferences, and cloud storage</p>
       </div>
 
       {/* User Profile Bento Card */}
@@ -116,12 +116,36 @@ export const MeScreen = ({
         )}
       </div>
 
-      {/* Cloud & Data Management Section */}
+      {/* Display & Features Settings */}
       <div className="bg-neo-card border border-neo-border rounded-3xl divide-y divide-neo-border/50 overflow-hidden shadow-neo-card">
         <div className="px-5 py-3 bg-neo-surface">
-          <span className="text-[10px] font-bold text-neo-muted uppercase tracking-wider">Features & Preferences</span>
+          <span className="text-[10px] font-bold text-neo-muted uppercase tracking-wider">Display & Controls</span>
         </div>
 
+        {/* OLED Theme Switcher */}
+        <div className="flex items-center justify-between px-5 py-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-2xl bg-neo-purple/10 border border-neo-purple/25 text-neo-purple flex items-center justify-center flex-shrink-0">
+              <Moon className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white">Pure OLED Black Mode</div>
+              <div className="text-[11px] text-neo-muted">Switch between Midnight Slate and Pitch Black #000000</div>
+            </div>
+          </div>
+          <button
+            onClick={onToggleTheme}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+              themeMode === 'oled'
+                ? 'bg-neo-neonGreen text-black border-neo-neonGreen shadow-neo-glow-green'
+                : 'bg-neo-surface text-neo-muted border-neo-border hover:text-white'
+            }`}
+          >
+            {themeMode === 'oled' ? 'OLED On' : 'Midnight'}
+          </button>
+        </div>
+
+        {/* Category Management */}
         <button
           onClick={() => setActiveTab('categories')}
           className="w-full flex items-center gap-3.5 px-5 py-4 hover:bg-neo-surface transition-all text-left group"
@@ -135,6 +159,7 @@ export const MeScreen = ({
           </div>
         </button>
 
+        {/* JSON Backup Download */}
         <button
           onClick={handleExport}
           className="w-full flex items-center gap-3.5 px-5 py-4 hover:bg-neo-surface transition-all text-left group"

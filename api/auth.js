@@ -3,7 +3,7 @@ import { SignJWT } from 'jose';
 import { getDb, initSchema } from './_lib/db.js';
 import { cors } from './_lib/auth.js';
 
-const CLIENT_ID = process.env.VITE_GOOGLE_CLIENT_ID;
+const CLIENT_ID = process.env.VITE_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '444915871839-9ehjpvt154q3v1cfho58rfgeujlai70j.apps.googleusercontent.com';
 const getSecret = () => new TextEncoder().encode(process.env.JWT_SECRET);
 
 const DEFAULT_INCOME  = ['Salary', 'Freelance', 'Interest', 'Bonus', 'Other'];
